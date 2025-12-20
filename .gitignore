@@ -1,0 +1,4 @@
+# Secrets
+.cliproxy.env
+.cliproxy.env.local
+config.yaml
