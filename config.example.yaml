@@ -28,7 +28,7 @@ remote-management:
 # Authentication directory (supports ~ for home directory)
 auth-dir: "~/.cli-proxy-api"
 
-# API keys for authentication (must match CLIPROXY_KEY_* in .cliproxy.env)
+# API keys for authentication (must match CLIPROXY_KEY_* in .llmproxy.env)
 api-keys:
   - "sk-REPLACE_ME"
   - "sk-REPLACE_ME"

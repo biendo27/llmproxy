@@ -5,11 +5,11 @@ and reuse on other machines.
 
 ## Files
 
-- `.cliproxy.env` - profiles, API keys, model defaults
-- `.cliproxy.env.example` - safe template (no real keys)
-- `.cliproxy.zsh` - bootstrap loader (sets CLIPROXY_HOME and sources modules)
-- `.cliproxy.core.zsh` - core logic (apply env, model mapping, /v1/models picker)
-- `.cliproxy.ui.zsh` - UI (fzf/text menu)
+- `.llmproxy.env` - profiles, API keys, model defaults
+- `.llmproxy.env.example` - safe template (no real keys)
+- `.llmproxy.zsh` - bootstrap loader (sets CLIPROXY_HOME and sources modules)
+- `.llmproxy.core.zsh` - core logic (apply env, model mapping, /v1/models picker)
+- `.llmproxy.ui.zsh` - UI (fzf/text menu)
 
 ## Quick setup (zsh)
 
@@ -17,20 +17,20 @@ and reuse on other machines.
 2) Copy the env template and fill in real keys:
 
 ```zsh
-cp /path/to/cliproxy-config/.cliproxy.env.example /path/to/cliproxy-config/.cliproxy.env
+cp /path/to/cliproxy-config/.llmproxy.env.example /path/to/cliproxy-config/.llmproxy.env
 ```
 
 3) Source the bootstrap file:
 
 ```zsh
-source /path/to/cliproxy-config/.cliproxy.zsh
+source /path/to/cliproxy-config/.llmproxy.zsh
 ```
 
 Optional: add the line above into `~/.zshrc` so it loads automatically.
 Example (this repo path):
 
 ```zsh
-[ -f "$HOME/cliproxyapi/cliproxy-config/.cliproxy.zsh" ] && source "$HOME/cliproxyapi/cliproxy-config/.cliproxy.zsh"
+[ -f "$HOME/cliproxyapi/cliproxy-config/.llmproxy.zsh" ] && source "$HOME/cliproxyapi/cliproxy-config/.llmproxy.zsh"
 ```
 
 ## Usage
@@ -58,13 +58,13 @@ cliproxy ...   # still works for backward compatibility
 ## Server setup (config.yaml)
 
 These scripts talk to CLIProxyAPI, so your `config.yaml` must match the
-connection info in `.cliproxy.env`.
+connection info in `.llmproxy.env`.
 
 Checklist:
 
 - **Start from template**: copy `config.example.yaml` (this folder) to
   `config.yaml` and replace placeholders.
-- **Base URL**: the `CLIPROXY_URL` in `.cliproxy.env` (default
+- **Base URL**: the `CLIPROXY_URL` in `.llmproxy.env` (default
   `http://127.0.0.1:8317`) must match the server host/port in `config.yaml`.
 - **Auth files**: make sure your OAuth JSON files live in the directory your
   server expects (e.g. `~/.cli-proxy-api`). The server reads them on startup.
@@ -84,10 +84,10 @@ Switch in the current shell:
 ```zsh
 llmproxy run-mode direct
 llmproxy run-mode systemd
-llmproxy run-mode systemd --persist  # save into .cliproxy.env
+llmproxy run-mode systemd --persist  # save into .llmproxy.env
 ```
 
-To persist, edit `.cliproxy.env` and set:
+To persist, edit `.llmproxy.env` and set:
 
 ```zsh
 export CLIPROXY_RUN_MODE="direct" # or "systemd"
@@ -108,11 +108,11 @@ llmproxy upgrade
 
 ## Notes / security
 
-- `.cliproxy.env` contains API keys. Use a private repo, or replace keys before
+- `.llmproxy.env` contains API keys. Use a private repo, or replace keys before
   pushing.
-- If you do not want to sync secrets, keep `.cliproxy.env` out of git and
-  create a machine-local file (e.g. `.cliproxy.env.local`) then point
-  `CLIPROXY_ENV` to it before sourcing `.cliproxy.zsh`.
+- If you do not want to sync secrets, keep `.llmproxy.env` out of git and
+  create a machine-local file (e.g. `.llmproxy.env.local`) then point
+  `CLIPROXY_ENV` to it before sourcing `.llmproxy.zsh`.
 - You can override paths:
   - `CLIPROXY_HOME` points to this folder
   - `CLIPROXY_ENV` points to the env file
@@ -120,18 +120,18 @@ llmproxy upgrade
 **Public repo warning:** do **not** publish real keys in a public GitHub repo.
 Treat any leaked keys as compromised and rotate/revoke them immediately.
 This repo includes a `.gitignore` to avoid committing `config.yaml` and
-`.cliproxy.env` by default.
+`.llmproxy.env` by default.
 
 ## Model defaults
 
-Defaults are defined in `.cliproxy.env`:
+Defaults are defined in `.llmproxy.env`:
 
 - `CLIPROXY_CLAUDE_*`, `CLIPROXY_CODEX_*`, `CLIPROXY_GEMINI_*`
 - Codex thinking levels: `CLIPROXY_CODEX_THINKING_*`
 - Preset: `CLIPROXY_PRESET` (claude by default)
 
-After editing `.cliproxy.env`, run:
+After editing `.llmproxy.env`, run:
 
 ```zsh
-source /path/to/cliproxy-config/.cliproxy.zsh
+source /path/to/cliproxy-config/.llmproxy.zsh
 ```

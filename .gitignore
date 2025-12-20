@@ -1,4 +1,4 @@
 # Secrets
-.cliproxy.env
-.cliproxy.env.local
+.llmproxy.env
+.llmproxy.env.local
 config.yaml
