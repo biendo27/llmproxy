@@ -1,6 +1,6 @@
-# CLIProxy config (portable)
+# LLMProxy config (CLIProxyAPI wrapper)
 
-This folder contains all CLIProxy shell config files so you can sync them to git
+This folder contains all LLMProxy shell config files so you can sync them to git
 and reuse on other machines.
 
 ## Files
@@ -36,17 +36,23 @@ Example (this repo path):
 ## Usage
 
 ```zsh
-cliproxy                 # interactive menu
-cliproxy use codex        # switch preset (claude/codex/gemini/antigravity)
-cliproxy use <model>      # use a specific model id
-cliproxy pick-model       # pick from /v1/models
-cliproxy status           # show current status
-cliproxy start            # start server (direct or systemd)
-cliproxy stop             # stop server
-cliproxy restart          # restart server
-cliproxy server-status    # show server status
-cliproxy upgrade          # download latest CLIProxyAPI binary
-cliproxy backup           # create a timestamped backup of the binary
+llmproxy                 # interactive menu
+llmproxy use codex        # switch preset (claude/codex/gemini/antigravity)
+llmproxy use <model>      # use a specific model id
+llmproxy pick-model       # pick from /v1/models
+llmproxy status           # show current status
+llmproxy start            # start server (direct or systemd)
+llmproxy stop             # stop server
+llmproxy restart          # restart server
+llmproxy server-status    # show server status
+llmproxy upgrade          # download latest CLIProxyAPI binary
+llmproxy backup           # create a timestamped backup of the binary
+```
+
+Legacy alias:
+
+```zsh
+cliproxy ...   # still works for backward compatibility
 ```
 
 ## Server setup (config.yaml)
@@ -76,9 +82,9 @@ Default mode is **direct** (runs `./cli-proxy-api` with `--config`).
 Switch in the current shell:
 
 ```zsh
-cliproxy_run_mode direct
-cliproxy_run_mode systemd
-cliproxy_run_mode systemd --persist  # save into .cliproxy.env
+llmproxy run-mode direct
+llmproxy run-mode systemd
+llmproxy run-mode systemd --persist  # save into .cliproxy.env
 ```
 
 To persist, edit `.cliproxy.env` and set:
@@ -90,14 +96,14 @@ export CLIPROXY_RUN_MODE="direct" # or "systemd"
 Systemd setup (user service):
 
 ```zsh
-cliproxy_systemd_install   # write unit file
-cliproxy_systemd_enable    # enable + start
+llmproxy systemd-install   # write unit file
+llmproxy systemd-enable    # enable + start
 ```
 
 Upgrade to latest release:
 
 ```zsh
-cliproxy_upgrade
+llmproxy upgrade
 ```
 
 ## Notes / security

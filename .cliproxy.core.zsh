@@ -7,9 +7,9 @@ fi
 
 _cliproxy_log() {
   if [[ "${CLIPROXY_LOG_SEP:-1}" != "0" ]]; then
-    printf "\n[cliproxy] ------------------------------\n"
+    printf "\n[llmproxy] ------------------------------\n"
   fi
-  printf "[cliproxy] %s\n" "$*"
+  printf "[llmproxy] %s\n" "$*"
 }
 
 # Add thinking suffix if set and not already in the model string
@@ -539,7 +539,7 @@ cliproxy_status() {
 
 cliproxy_help() {
   cat <<'EOF'
-Usage: cliproxy <command> [args]
+Usage: llmproxy <command> [args]
 
 Commands:
   ui|menu                 Open interactive menu
@@ -557,6 +557,9 @@ Server:
   systemd-enable           Enable + start user systemd service
   upgrade                  Download and replace latest binary
   backup                   Create a timestamped backup of the binary
+
+Notes:
+  - "cliproxy" is kept as a legacy alias for llmproxy.
 EOF
 }
 
@@ -588,4 +591,12 @@ cliproxy() {
       return 1
       ;;
   esac
+}
+
+llmproxy_help() {
+  cliproxy_help
+}
+
+llmproxy() {
+  cliproxy "$@"
 }

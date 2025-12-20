@@ -91,7 +91,7 @@ cliproxy_menu_text() {
   unsetopt xtrace
   while true; do
     echo ""
-    echo "== CLIProxy Menu =="
+    echo "== LLMProxy Menu =="
     echo "1) Use preset (claude/codex/gemini/antigravity)"
     echo "2) Pick model from server (all)"
     echo "3) Pick model from server (codex)"
@@ -169,7 +169,7 @@ cliproxy_menu() {
       "Backup CLIProxyAPI binary" \
       "Status" \
       "Clear model override" \
-      "Exit" | fzf --prompt="CLIProxy> " --height=40% --border --no-multi --header="$(_cliproxy_status_line)") || return
+      "Exit" | fzf --prompt="LLMProxy> " --height=40% --border --no-multi --header="$(_cliproxy_status_line)") || return
 
     case "$choice" in
       "Use preset") _cliproxy_action_use_preset ;;
