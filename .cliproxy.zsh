@@ -1,8 +1,13 @@
 #!/usr/bin/env zsh
 # CLIProxyAPI bootstrap (loads env + split modules)
 
-CLIPROXY_HOME="${CLIPROXY_HOME:-$(cd -- "$(dirname -- "${(%):-%N}")" && pwd)}"
-CLIPROXY_ENV="${CLIPROXY_ENV:-$CLIPROXY_HOME/.cliproxy.env}"
+_cliproxy_here="$(cd -- "$(dirname -- "${(%):-%N}")" && pwd)"
+if [[ -z "${CLIPROXY_HOME:-}" || ! -f "${CLIPROXY_HOME}/.cliproxy.core.zsh" ]]; then
+  CLIPROXY_HOME="$_cliproxy_here"
+fi
+if [[ -z "${CLIPROXY_ENV:-}" || ! -f "${CLIPROXY_ENV}" ]]; then
+  CLIPROXY_ENV="${CLIPROXY_HOME}/.cliproxy.env"
+fi
 
 [[ -f "$CLIPROXY_ENV" ]] && source "$CLIPROXY_ENV"
 

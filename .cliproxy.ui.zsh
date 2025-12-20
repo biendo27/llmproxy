@@ -107,9 +107,10 @@ cliproxy_menu_text() {
     echo "13) Set run mode (direct/systemd)"
     echo "14) Install systemd service"
     echo "15) Upgrade CLIProxyAPI"
-    echo "16) Status"
-    echo "17) Clear model override"
-    echo "18) Exit"
+    echo "16) Backup CLIProxyAPI binary"
+    echo "17) Status"
+    echo "18) Clear model override"
+    echo "19) Exit"
     read -r "choice?Select: "
 
     case "$choice" in
@@ -128,9 +129,10 @@ cliproxy_menu_text() {
       13) _cliproxy_action_run_mode ;;
       14) _cliproxy_action_systemd_install ;;
       15) cliproxy_upgrade ;;
-      16) cliproxy_status ;;
-      17) cliproxy_clear ;;
-      18) break ;;
+      16) cliproxy_backup ;;
+      17) cliproxy_status ;;
+      18) cliproxy_clear ;;
+      19) break ;;
       *) echo "Invalid choice." ;;
     esac
   done
@@ -164,6 +166,7 @@ cliproxy_menu() {
       "Set run mode (direct/systemd)" \
       "Install systemd service" \
       "Upgrade CLIProxyAPI" \
+      "Backup CLIProxyAPI binary" \
       "Status" \
       "Clear model override" \
       "Exit" | fzf --prompt="CLIProxy> " --height=40% --border --no-multi --header="$(_cliproxy_status_line)") || return
@@ -184,6 +187,7 @@ cliproxy_menu() {
       "Set run mode (direct/systemd)") _cliproxy_action_run_mode ;;
       "Install systemd service") _cliproxy_action_systemd_install ;;
       "Upgrade CLIProxyAPI") cliproxy_upgrade ;;
+      "Backup CLIProxyAPI binary") cliproxy_backup ;;
       "Status") cliproxy_status ;;
       "Clear model override") cliproxy_clear ;;
       "Exit") break ;;

@@ -296,8 +296,11 @@ PY
   tmp="$(mktemp -d)" || return 1
   archive="$tmp/cliproxyapi.tar.gz"
   curl -L "$url" -o "$archive" || { _cliproxy_log "download failed"; return 1; }
-  tar -xzf "$archive" -C "$tmp"
-  newbin="$(find "$tmp" -type f \\( -name 'cli-proxy-api' -o -name 'CLIProxyAPI' \\) | head -n 1)"
+  tar -xzf "$archive" -C "$tmp" || { _cliproxy_log "extract failed"; return 1; }
+  newbin="$(find "$tmp" -type f -name 'cli-proxy-api' | head -n 1)"
+  if [[ -z "$newbin" ]]; then
+    newbin="$(find "$tmp" -type f -name 'CLIProxyAPI' | head -n 1)"
+  fi
   if [[ -z "$newbin" ]]; then
     _cliproxy_log "binary not found in archive"
     return 1
@@ -326,6 +329,18 @@ PY
   if (( running )); then
     cliproxy_start
   fi
+}
+
+cliproxy_backup() {
+  local target out
+  target="${CLIPROXY_BIN:-$CLIPROXY_SERVER_DIR/cli-proxy-api}"
+  if [[ -z "$target" || ! -f "$target" ]]; then
+    _cliproxy_log "binary not found; set CLIPROXY_BIN"
+    return 1
+  fi
+  out="${target}.bak-$(date +%Y%m%d%H%M%S)"
+  cp -f "$target" "$out"
+  _cliproxy_log "backup created: $out"
 }
 
 cliproxy_pick_model() {
@@ -520,4 +535,57 @@ cliproxy_status() {
   printf "  opus    : %s\n" "${ANTHROPIC_DEFAULT_OPUS_MODEL:-}"
   printf "  sonnet  : %s\n" "${ANTHROPIC_DEFAULT_SONNET_MODEL:-}"
   printf "  haiku   : %s\n" "${ANTHROPIC_DEFAULT_HAIKU_MODEL:-}"
+}
+
+cliproxy_help() {
+  cat <<'EOF'
+Usage: cliproxy <command> [args]
+
+Commands:
+  ui|menu                 Open interactive menu
+  use <preset|model>       Switch preset or set model id
+  pick-model [filter]      Pick model from /v1/models
+  profile <local|local2>   Switch profile
+  status                   Show current env/model status
+  clear                    Clear model override
+
+Server:
+  start|stop|restart       Control server (direct/systemd)
+  server-status            Show server status
+  run-mode <direct|systemd> [--persist]
+  systemd-install          Install user systemd service
+  systemd-enable           Enable + start user systemd service
+  upgrade                  Download and replace latest binary
+  backup                   Create a timestamped backup of the binary
+EOF
+}
+
+cliproxy() {
+  local cmd="${1:-}"
+  if (( $# > 0 )); then
+    shift
+  fi
+  case "$cmd" in
+    ""|ui|menu) cliproxy_ui ;;
+    use) cliproxy_use "$@" ;;
+    pick-model) cliproxy_pick_model "$@" ;;
+    profile) cliproxy_profile "$@" ;;
+    status) cliproxy_status ;;
+    clear) cliproxy_clear ;;
+    start) cliproxy_start ;;
+    stop) cliproxy_stop ;;
+    restart) cliproxy_restart ;;
+    server-status) cliproxy_server_status ;;
+    run-mode) cliproxy_run_mode "$@" ;;
+    systemd-install) cliproxy_systemd_install ;;
+    systemd-enable) cliproxy_systemd_enable ;;
+    upgrade) cliproxy_upgrade ;;
+    backup) cliproxy_backup ;;
+    help|-h|--help) cliproxy_help ;;
+    *)
+      echo "Unknown command: $cmd"
+      cliproxy_help
+      return 1
+      ;;
+  esac
 }

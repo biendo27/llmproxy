@@ -36,16 +36,17 @@ Example (this repo path):
 ## Usage
 
 ```zsh
-cliproxy_ui          # interactive menu
-cliproxy_use codex   # switch preset (claude/codex/gemini/antigravity)
-cliproxy_use <model> # use a specific model id
-cliproxy_pick_model  # pick from /v1/models
-cliproxy_status      # show current status
-cliproxy_start       # start server (direct or systemd)
-cliproxy_stop        # stop server
-cliproxy_restart     # restart server
-cliproxy_server_status # show server status
-cliproxy_upgrade     # download latest CLIProxyAPI binary
+cliproxy                 # interactive menu
+cliproxy use codex        # switch preset (claude/codex/gemini/antigravity)
+cliproxy use <model>      # use a specific model id
+cliproxy pick-model       # pick from /v1/models
+cliproxy status           # show current status
+cliproxy start            # start server (direct or systemd)
+cliproxy stop             # stop server
+cliproxy restart          # restart server
+cliproxy server-status    # show server status
+cliproxy upgrade          # download latest CLIProxyAPI binary
+cliproxy backup           # create a timestamped backup of the binary
 ```
 
 ## Server setup (config.yaml)
