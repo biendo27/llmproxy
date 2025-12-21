@@ -527,9 +527,10 @@ cliproxy_backup() {
 
 cliproxy_pick_model() {
   local filter="${1:-}"
-  local mode="${2:-}"   # optional: codex|claude|gemini to set preset opus
+  local mode="${2:-}"   # optional: codex|claude|gemini to set preset tiers
   local picker="${3:-}" # optional: gum|fzf|auto
-  local models
+  local models default_label
+  default_label="Default (keep current)"
   models="$(_cliproxy_list_models)" || {
     _cliproxy_log "failed to fetch /v1/models (is CLIProxyAPI running?)"
     return 1
@@ -541,64 +542,104 @@ cliproxy_pick_model() {
   fi
 
   if [[ -z "$models" ]]; then
-    _cliproxy_log "no models matched filter: ${filter:-<none>}"
-    return 1
+    _cliproxy_log "no models matched filter: ${filter:-<none>} (default only)"
+    models=""
   fi
 
-  local picked=""
-  if [[ "$picker" == "gum" ]] && command -v gum >/dev/null 2>&1; then
-    # Some gum versions don't support --filter, so pre-filter manually.
-    local term=""
-    if gum choose --help 2>&1 | grep -q -- '--filter'; then
-      picked="$(printf "%s\n" "$models" | gum choose --header "$(_cliproxy_status_line)" --filter)" || return
-    else
-      term="$(gum input --prompt "Filter (optional): " --placeholder "type to narrow")" || return
-      if [[ -n "$term" ]]; then
-        models="$(printf "%s\n" "$models" | grep -Ei -- "$term" || true)"
+  _cliproxy_pick_from_list() {
+    local list="$1"
+    local header="$2"
+    local picked=""
+    if [[ "$picker" == "gum" ]] && command -v gum >/dev/null 2>&1; then
+      local term=""
+      if gum choose --help 2>&1 | grep -q -- '--filter'; then
+        picked="$(printf "%s\n" "$list" | gum choose --header "$header" --filter)" || return 1
+      else
+        term="$(gum input --prompt "Filter (optional): " --placeholder "type to narrow")" || return 1
+        if [[ -n "$term" ]]; then
+          list="$(printf "%s\n" "$list" | grep -Ei -- "$term" || true)"
+          if ! printf "%s\n" "$list" | grep -Fxq -- "$default_label"; then
+            list="$(printf "%s\n%s\n" "$default_label" "$list")"
+          fi
+        fi
+        [[ -n "$list" ]] || list="$default_label"
+        picked="$(printf "%s\n" "$list" | gum choose --header "$header")" || return 1
       fi
-      [[ -n "$models" ]] || return 1
-      picked="$(printf "%s\n" "$models" | gum choose --header "$(_cliproxy_status_line)")" || return
+    elif command -v fzf >/dev/null 2>&1; then
+      picked="$(printf "%s\n" "$list" | fzf --prompt="Model> " --height=60% --border --no-multi --header="$header")" || return 1
+    else
+      _cliproxy_log "fzf not found; printing list."
+      printf "%s\n" "$list"
+      read -r "m?Enter model ID (empty = keep current): "
+      picked="$m"
     fi
-  elif command -v fzf >/dev/null 2>&1; then
-    picked="$(printf "%s\n" "$models" | fzf --prompt="Model> " --height=60% --border --no-multi --header="$(_cliproxy_status_line)")" || return
-  else
-    _cliproxy_log "fzf not found; printing list."
-    printf "%s\n" "$models"
-    read -r "m?Enter model ID: "
-    picked="$m"
-  fi
-
-  [[ -n "$picked" ]] || return
+    printf "%s" "$picked"
+  }
 
   case "$mode" in
-    codex)
-      export CLIPROXY_CODEX_OPUS="$picked"
-      export CLIPROXY_CODEX_SONNET="$picked"
-      export CLIPROXY_CODEX_HAIKU="$picked"
-      export CLIPROXY_PRESET="codex"
+    codex|claude|gemini)
+      _llmproxy_sync_preset_models "$mode"
+      local picked current list header changed=0
+      local tiers=("opus" "sonnet" "haiku")
+      for tier in "${tiers[@]}"; do
+        case "$mode:$tier" in
+          codex:opus)
+            current="$(_cliproxy_with_thinking "${CLIPROXY_CODEX_OPUS:-}" "${CLIPROXY_CODEX_THINKING_OPUS:-}")"
+            ;;
+          codex:sonnet)
+            current="$(_cliproxy_with_thinking "${CLIPROXY_CODEX_SONNET:-}" "${CLIPROXY_CODEX_THINKING_SONNET:-}")"
+            ;;
+          codex:haiku)
+            current="$(_cliproxy_with_thinking "${CLIPROXY_CODEX_HAIKU:-}" "${CLIPROXY_CODEX_THINKING_HAIKU:-}")"
+            ;;
+          claude:opus) current="${CLIPROXY_CLAUDE_OPUS:-}" ;;
+          claude:sonnet) current="${CLIPROXY_CLAUDE_SONNET:-}" ;;
+          claude:haiku) current="${CLIPROXY_CLAUDE_HAIKU:-}" ;;
+          gemini:opus) current="${CLIPROXY_GEMINI_OPUS:-}" ;;
+          gemini:sonnet) current="${CLIPROXY_GEMINI_SONNET:-}" ;;
+          gemini:haiku) current="${CLIPROXY_GEMINI_HAIKU:-}" ;;
+          *) current="" ;;
+        esac
+
+        list="$default_label"
+        if [[ -n "$models" ]]; then
+          list="$(printf "%s\n%s\n" "$default_label" "$models")"
+        fi
+        header="Override ${mode} ${tier} model (current: ${current:-<unset>})"
+        picked="$(_cliproxy_pick_from_list "$list" "$header")" || { _cliproxy_log "skip ${tier} (cancelled)"; continue; }
+        [[ -z "$picked" || "$picked" == "$default_label" ]] && continue
+
+        case "$mode:$tier" in
+          codex:opus) export CLIPROXY_CODEX_OPUS="$picked" ;;
+          codex:sonnet) export CLIPROXY_CODEX_SONNET="$picked" ;;
+          codex:haiku) export CLIPROXY_CODEX_HAIKU="$picked" ;;
+          claude:opus) export CLIPROXY_CLAUDE_OPUS="$picked" ;;
+          claude:sonnet) export CLIPROXY_CLAUDE_SONNET="$picked" ;;
+          claude:haiku) export CLIPROXY_CLAUDE_HAIKU="$picked" ;;
+          gemini:opus) export CLIPROXY_GEMINI_OPUS="$picked" ;;
+          gemini:sonnet) export CLIPROXY_GEMINI_SONNET="$picked" ;;
+          gemini:haiku) export CLIPROXY_GEMINI_HAIKU="$picked" ;;
+        esac
+        changed=1
+      done
+
+      export CLIPROXY_PRESET="$mode"
       export CLIPROXY_MODEL=""
       _cliproxy_apply
-      _cliproxy_log "codex opus set: $(_cliproxy_current_model)"
-      ;;
-    claude)
-      export CLIPROXY_CLAUDE_OPUS="$picked"
-      export CLIPROXY_CLAUDE_SONNET="$picked"
-      export CLIPROXY_CLAUDE_HAIKU="$picked"
-      export CLIPROXY_PRESET="claude"
-      export CLIPROXY_MODEL=""
-      _cliproxy_apply
-      _cliproxy_log "claude opus set: $(_cliproxy_current_model)"
-      ;;
-    gemini)
-      export CLIPROXY_GEMINI_OPUS="$picked"
-      export CLIPROXY_GEMINI_SONNET="$picked"
-      export CLIPROXY_GEMINI_HAIKU="$picked"
-      export CLIPROXY_PRESET="gemini"
-      export CLIPROXY_MODEL=""
-      _cliproxy_apply
-      _cliproxy_log "gemini opus set: $(_cliproxy_current_model)"
+      if (( changed )); then
+        _cliproxy_log "$mode tiers updated"
+      else
+        _cliproxy_log "kept current $mode preset"
+      fi
       ;;
     *)
+      local picked=""
+      local list="$default_label"
+      if [[ -n "$models" ]]; then
+        list="$(printf "%s\n%s\n" "$default_label" "$models")"
+      fi
+      picked="$(_cliproxy_pick_from_list "$list" "$(_cliproxy_status_line)")" || return
+      [[ -n "$picked" && "$picked" != "$default_label" ]] || { _cliproxy_log "kept current preset/model"; return 0; }
       cliproxy_use "$picked"
       ;;
   esac
