@@ -7,6 +7,13 @@ _cliproxy_log() {
   printf "[llmproxy] %s\n" "$*"
 }
 
+_llmproxy_kv() {
+  local key="$1"
+  local val="$2"
+  local width="${3:-16}"
+  printf "  %-*s : %s\n" "$width" "$key" "$val"
+}
+
 _llmproxy_snapshot_env() {
   if [[ -n "${_LLMPROXY_SAVED:-}" ]]; then
     return 0

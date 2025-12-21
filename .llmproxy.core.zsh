@@ -118,52 +118,55 @@ llmproxy_fix() {
 
 llmproxy_doctor() {
   _cliproxy_log "doctor"
+  setopt local_options
+  unsetopt xtrace verbose
   local os arch missing=0
   os="$(uname -s | tr '[:upper:]' '[:lower:]')"
   arch="$(_cliproxy_arch)"
-  printf "  os       : %s\n" "$os"
-  printf "  arch     : %s\n" "${arch:-unknown}"
-  printf "  mode     : %s\n" "${LLMPROXY_MODE:-proxy}"
-  printf "  run-mode : %s\n" "${CLIPROXY_RUN_MODE:-direct}"
+  local w=10
+  _llmproxy_kv "os" "$os" "$w"
+  _llmproxy_kv "arch" "${arch:-unknown}" "$w"
+  _llmproxy_kv "mode" "${LLMPROXY_MODE:-proxy}" "$w"
+  _llmproxy_kv "run-mode" "${CLIPROXY_RUN_MODE:-direct}" "$w"
   if _llmproxy_path_has_local_bin; then
-    printf "  path     : ok (~/.local/bin)\n"
+    _llmproxy_kv "path" "ok (~/.local/bin)" "$w"
   else
-    printf "  path     : missing ~/.local/bin\n"
+    _llmproxy_kv "path" "missing ~/.local/bin" "$w"
     missing=1
   fi
 
   for cmd in zsh curl python3; do
     if _llmproxy_has_cmd "$cmd"; then
-      printf "  %s     : ok\n" "$cmd"
+      _llmproxy_kv "$cmd" "ok" "$w"
     else
-      printf "  %s     : missing\n" "$cmd"
+      _llmproxy_kv "$cmd" "missing" "$w"
       missing=1
     fi
   done
   if _llmproxy_has_cmd fzf; then
-    printf "  fzf     : ok (UI picker)\n"
+    _llmproxy_kv "fzf" "ok (UI picker)" "$w"
   else
-    printf "  fzf     : missing (text menu only)\n"
+    _llmproxy_kv "fzf" "missing (text menu only)" "$w"
   fi
 
   if [[ -n "${CLIPROXY_URL:-}" && -n "${CLIPROXY_KEY:-}" ]]; then
     if curl -fsS -H "Authorization: Bearer ${CLIPROXY_KEY}" \
       "${CLIPROXY_URL}/v1/models" >/dev/null 2>&1; then
-      printf "  server  : reachable (%s)\n" "$CLIPROXY_URL"
+      _llmproxy_kv "server" "reachable (${CLIPROXY_URL})" "$w"
     else
-      printf "  server  : not reachable (%s)\n" "$CLIPROXY_URL"
+      _llmproxy_kv "server" "not reachable (${CLIPROXY_URL})" "$w"
     fi
   else
-    printf "  server  : CLIPROXY_URL/KEY not set\n"
+    _llmproxy_kv "server" "CLIPROXY_URL/KEY not set" "$w"
   fi
 
   if [[ "$os" == "darwin" ]]; then
-    printf "  systemd : not available (macOS)\n"
+    _llmproxy_kv "systemd" "not available (macOS)" "$w"
   else
     if _llmproxy_has_cmd systemctl; then
-      printf "  systemd : available\n"
+      _llmproxy_kv "systemd" "available" "$w"
     else
-      printf "  systemd : not available\n"
+      _llmproxy_kv "systemd" "not available" "$w"
     fi
   fi
 
@@ -174,14 +177,17 @@ llmproxy_doctor() {
 
 llmproxy_env() {
   _cliproxy_log "env"
-  printf "  mode       : %s\n" "${LLMPROXY_MODE:-proxy}"
-  printf "  run-mode   : %s\n" "${CLIPROXY_RUN_MODE:-direct}"
-  printf "  base_url   : %s\n" "${CLIPROXY_URL:-}"
-  printf "  key        : %s\n" "$(_llmproxy_mask "${CLIPROXY_KEY:-}")"
-  printf "  model      : %s\n" "$(_cliproxy_current_model)"
-  printf "  ANTHROPIC_BASE_URL : %s\n" "${ANTHROPIC_BASE_URL-}"
-  printf "  ANTHROPIC_AUTH_TOKEN : %s\n" "$(_llmproxy_mask "${ANTHROPIC_AUTH_TOKEN-}")"
-  printf "  ANTHROPIC_MODEL : %s\n" "${ANTHROPIC_MODEL-}"
+  setopt local_options
+  unsetopt xtrace verbose
+  local w=22
+  _llmproxy_kv "mode" "${LLMPROXY_MODE:-proxy}" "$w"
+  _llmproxy_kv "run-mode" "${CLIPROXY_RUN_MODE:-direct}" "$w"
+  _llmproxy_kv "base_url" "${CLIPROXY_URL:-}" "$w"
+  _llmproxy_kv "key" "$(_llmproxy_mask "${CLIPROXY_KEY:-}")" "$w"
+  _llmproxy_kv "model" "$(_cliproxy_current_model)" "$w"
+  _llmproxy_kv "ANTHROPIC_BASE_URL" "${ANTHROPIC_BASE_URL-}" "$w"
+  _llmproxy_kv "ANTHROPIC_AUTH_TOKEN" "$(_llmproxy_mask "${ANTHROPIC_AUTH_TOKEN-}")" "$w"
+  _llmproxy_kv "ANTHROPIC_MODEL" "${ANTHROPIC_MODEL-}" "$w"
 }
 
 llmproxy_whoami() {
@@ -820,6 +826,8 @@ cliproxy_clear() {
 
 cliproxy_status() {
   _cliproxy_log "status"
+  setopt local_options
+  unsetopt xtrace verbose
   local preset="${CLIPROXY_PRESET:-}"
   local opus="${ANTHROPIC_DEFAULT_OPUS_MODEL:-}"
   local sonnet="${ANTHROPIC_DEFAULT_SONNET_MODEL:-}"
@@ -862,12 +870,13 @@ cliproxy_status() {
   [[ -z "$sonnet" && -n "$opus" ]] && sonnet="$opus"
   [[ -z "$haiku" && -n "$sonnet" ]] && haiku="$sonnet"
 
-  printf "  profile : %s\n" "${CLIPROXY_PROFILE:-}"
-  printf "  base_url: %s\n" "${CLIPROXY_URL:-}"
-  printf "  default : %s\n" "$(_cliproxy_current_model)"
-  printf "  opus    : %s\n" "$opus"
-  printf "  sonnet  : %s\n" "$sonnet"
-  printf "  haiku   : %s\n" "$haiku"
+  local w=10
+  _llmproxy_kv "profile" "${CLIPROXY_PROFILE:-}" "$w"
+  _llmproxy_kv "base_url" "${CLIPROXY_URL:-}" "$w"
+  _llmproxy_kv "default" "$(_cliproxy_current_model)" "$w"
+  _llmproxy_kv "opus" "$opus" "$w"
+  _llmproxy_kv "sonnet" "$sonnet" "$w"
+  _llmproxy_kv "haiku" "$haiku" "$w"
   _llmproxy_warn_mixed_providers "$opus" "$sonnet" "$haiku"
 }
 
@@ -909,8 +918,10 @@ EOF
 
 cliproxy() {
   local _saved_xtrace="${options[xtrace]:-off}"
-  unsetopt xtrace
+  local _saved_verbose="${options[verbose]:-off}"
+  unsetopt xtrace verbose
   set +x 2>/dev/null || true
+  set +v 2>/dev/null || true
   local cmd="${1:-}"
   if (( $# > 0 )); then
     shift
@@ -952,6 +963,7 @@ cliproxy() {
       ;;
   esac
   [[ "$_saved_xtrace" == "on" ]] && setopt xtrace
+  [[ "$_saved_verbose" == "on" ]] && setopt verbose
   return $rc
 }
 

@@ -1,30 +1,39 @@
 # UI helpers (menu + TUI) - fzf/text only (no gum)
 
 typeset -ga _LLMPROXY_XTRACE_STACK
+typeset -ga _LLMPROXY_VERBOSE_STACK
 
 _cliproxy_has_fzf() { command -v fzf >/dev/null 2>&1; }
 
 _cliproxy_ui_silence_xtrace_begin() {
   # Save xtrace state to restore later (stack-safe for nested calls)
   _LLMPROXY_XTRACE_STACK+=("${options[xtrace]:-off}")
-  unsetopt xtrace
+  _LLMPROXY_VERBOSE_STACK+=("${options[verbose]:-off}")
+  unsetopt xtrace verbose
   set +x 2>/dev/null || true
+  set +v 2>/dev/null || true
 }
 
 _cliproxy_ui_silence_xtrace_end() {
   local idx=${#_LLMPROXY_XTRACE_STACK[@]}
-  local last=""
+  local last="" vlast=""
   (( idx > 0 )) || return 0
   last="${_LLMPROXY_XTRACE_STACK[$idx]}"
+  vlast="${_LLMPROXY_VERBOSE_STACK[$idx]}"
   unset "_LLMPROXY_XTRACE_STACK[$idx]"
+  unset "_LLMPROXY_VERBOSE_STACK[$idx]"
   if [[ "$last" == "on" ]]; then
     setopt xtrace
+  fi
+  if [[ "$vlast" == "on" ]]; then
+    setopt verbose
   fi
 }
 
 _cliproxy_ui_no_xtrace() {
-  unsetopt xtrace
+  unsetopt xtrace verbose
   set +x 2>/dev/null || true
+  set +v 2>/dev/null || true
 }
 
 _cliproxy_ui_theme() {
@@ -61,9 +70,22 @@ _cliproxy_ui_colors() {
   esac
 }
 
+_llmproxy_menu_item() {
+    local label="$1"
+  local desc="$2"
+  local width="${3:-28}"
+  printf "%-*s\t%s" "$width" "$label" "$desc"
+}
+
+_llmproxy_menu_section() {
+  local label="$1"
+  local width="${2:-28}"
+  printf "%-*s\t" "$width" "$label"
+}
+
 _cliproxy_fzf_menu() {
   setopt local_options
-  unsetopt xtrace
+  _cliproxy_ui_no_xtrace
   local prompt="$1"
   local header="$2"
   local height="${3:-60%}"
@@ -88,16 +110,17 @@ _cliproxy_ui_status_blob() {
 
   printf "LLMProxy Status\n"
   printf "--------------\n"
-  printf "profile : %s\n" "${CLIPROXY_PROFILE:-<unset>}"
-  printf "mode    : %s\n" "$mode"
-  printf "run     : %s\n" "$run_mode"
-  printf "base    : %s\n" "${base:-<unset>}"
-  printf "key     : %s\n" "${key_mask:-<unset>}"
-  printf "preset  : %s\n" "${preset:-<none>}"
-  printf "model   : %s\n" "${model:-<default>}"
-  printf "tiers   : opus=%s\n" "${ANTHROPIC_DEFAULT_OPUS_MODEL:-<unset>}"
-  printf "          sonnet=%s\n" "${ANTHROPIC_DEFAULT_SONNET_MODEL:-<unset>}"
-  printf "          haiku=%s\n" "${ANTHROPIC_DEFAULT_HAIKU_MODEL:-<unset>}"
+  local w=8
+  _llmproxy_kv "profile" "${CLIPROXY_PROFILE:-<unset>}" "$w"
+  _llmproxy_kv "mode" "$mode" "$w"
+  _llmproxy_kv "run" "$run_mode" "$w"
+  _llmproxy_kv "base" "${base:-<unset>}" "$w"
+  _llmproxy_kv "key" "${key_mask:-<unset>}" "$w"
+  _llmproxy_kv "preset" "${preset:-<none>}" "$w"
+  _llmproxy_kv "model" "${model:-<default>}" "$w"
+  _llmproxy_kv "opus" "${ANTHROPIC_DEFAULT_OPUS_MODEL:-<unset>}" "$w"
+  _llmproxy_kv "sonnet" "${ANTHROPIC_DEFAULT_SONNET_MODEL:-<unset>}" "$w"
+  _llmproxy_kv "haiku" "${ANTHROPIC_DEFAULT_HAIKU_MODEL:-<unset>}" "$w"
   [[ -n "$warn" ]] && printf "\n%s\n" "$warn"
 }
 
@@ -126,7 +149,7 @@ _cliproxy_ui_header() {
 
 _cliproxy_choose_level() {
   setopt local_options
-  unsetopt xtrace
+  _cliproxy_ui_no_xtrace
   _cliproxy_ui_silence_xtrace_begin
   local prompt="$1"
   local current="$2"
@@ -144,7 +167,7 @@ _cliproxy_choose_level() {
 
 _cliproxy_action_use_preset() {
   setopt local_options
-  unsetopt xtrace
+  _cliproxy_ui_no_xtrace
   _cliproxy_ui_silence_xtrace_begin
   local preset=""
   if _cliproxy_has_fzf; then
@@ -167,7 +190,7 @@ _cliproxy_action_use_preset() {
 
 _cliproxy_action_use_model_id() {
   setopt local_options
-  unsetopt xtrace
+  _cliproxy_ui_no_xtrace
   _cliproxy_ui_silence_xtrace_begin
   read -r "m?Enter model ID: "
   [[ -n "$m" ]] && cliproxy_use "$m"
@@ -176,7 +199,7 @@ _cliproxy_action_use_model_id() {
 
 _cliproxy_action_codex_thinking() {
   setopt local_options
-  unsetopt xtrace
+  _cliproxy_ui_no_xtrace
   _cliproxy_ui_silence_xtrace_begin
   local t1 t2 t3
   t1="$(_cliproxy_choose_level "Opus" "${CLIPROXY_CODEX_THINKING_OPUS:-}")" || return
@@ -192,7 +215,7 @@ _cliproxy_action_codex_thinking() {
 
 _cliproxy_action_switch_profile() {
   setopt local_options
-  unsetopt xtrace
+  _cliproxy_ui_no_xtrace
   _cliproxy_ui_silence_xtrace_begin
   local prof=""
   if _cliproxy_has_fzf; then
@@ -207,7 +230,7 @@ _cliproxy_action_switch_profile() {
 
 _cliproxy_action_run_mode() {
   setopt local_options
-  unsetopt xtrace
+  _cliproxy_ui_no_xtrace
   _cliproxy_ui_silence_xtrace_begin
   local mode=""
   if _cliproxy_has_fzf; then
@@ -221,7 +244,7 @@ _cliproxy_action_run_mode() {
 
 _cliproxy_action_systemd_install() {
   setopt local_options
-  unsetopt xtrace
+  _cliproxy_ui_no_xtrace
   _cliproxy_ui_silence_xtrace_begin
   cliproxy_systemd_install
   if _cliproxy_has_fzf; then
@@ -236,8 +259,8 @@ _cliproxy_action_systemd_install() {
 }
 
 llmproxy_ui_config() {
-  setopt local_options
-  unsetopt xtrace
+  emulate -L zsh
+  _cliproxy_ui_no_xtrace
   _cliproxy_ui_silence_xtrace_begin
   if ! _cliproxy_has_fzf; then
     _cliproxy_log "fzf not found; UI config requires fzf."
@@ -245,24 +268,27 @@ llmproxy_ui_config() {
   fi
 
   while true; do
+    local -a item_lines=()
     local mode="${LLMPROXY_UI_MODE:-expanded}"
     local theme="${LLMPROXY_UI_THEME:-claude}"
     local preview="${LLMPROXY_UI_PREVIEW:-0}"
     local grouped="${LLMPROXY_UI_GROUPED:-1}"
     local keys="${LLMPROXY_UI_QUICK_KEYS:-1}"
 
-    local choice items
-    items=$'Mode: '"${mode}"$'\tcompact | expanded | preview\n'
-    items+=$'Theme: '"${theme}"$'\tclaude | codex | mono\n'
-    items+=$'Preview panel: '"${preview}"$'\t0=off | 1=on\n'
-    items+=$'Grouped sections: '"${grouped}"$'\t0=off | 1=on\n'
-    items+=$'Quick keys: '"${keys}"$'\tCtrl+P/O/S/E\n'
-    items+=$'Back\treturn\n'
+    local choice items item_w=24
+    item_lines+=("$(_llmproxy_menu_item "Mode: ${mode}" "compact | expanded | preview" "$item_w")")
+    item_lines+=("$(_llmproxy_menu_item "Theme: ${theme}" "claude | codex | mono" "$item_w")")
+    item_lines+=("$(_llmproxy_menu_item "Preview panel: ${preview}" "0=off | 1=on" "$item_w")")
+    item_lines+=("$(_llmproxy_menu_item "Grouped sections: ${grouped}" "0=off | 1=on" "$item_w")")
+    item_lines+=("$(_llmproxy_menu_item "Quick keys: ${keys}" "Ctrl+P/O/S/E" "$item_w")")
+    item_lines+=("$(_llmproxy_menu_item "Back" "return" "$item_w")")
+    items="${(F)item_lines}"
 
     choice="$(printf "%s" "$items" | \
       _cliproxy_fzf_menu "UI> " "$(_cliproxy_ui_header)" "40%" --delimiter=$'\t' --with-nth=1,2 --nth=1,2)" || return
 
     choice="${choice%%$'\t'*}"
+    choice="${choice%"${choice##*[![:space:]]}"}"
     case "$choice" in
       "Mode:"*)
         mode="$(printf "%s\n" compact expanded preview | _cliproxy_fzf_menu "Mode> " "$(_cliproxy_ui_header)" "40%")" || continue
@@ -292,8 +318,8 @@ llmproxy_ui_config() {
 
 # Simple text menu (fallback when fzf is unavailable)
 cliproxy_menu_text() {
-  setopt local_options
-  unsetopt xtrace
+  emulate -L zsh
+  _cliproxy_ui_no_xtrace
   while true; do
     echo ""
     echo "== LLMProxy Menu =="
@@ -363,8 +389,8 @@ cliproxy_menu_text() {
 
 # Arrow-key menu using fzf (if available)
 cliproxy_menu() {
-  setopt local_options
-  unsetopt xtrace
+  emulate -L zsh
+  _cliproxy_ui_no_xtrace
   _cliproxy_ui_silence_xtrace_begin
   if ! _cliproxy_has_fzf; then
     _cliproxy_log "fzf not found; using text menu."
@@ -373,46 +399,49 @@ cliproxy_menu() {
   fi
 
   while true; do
+    local -a item_lines=()
     _cliproxy_ui_no_xtrace
     local choice
     local items=""
+    local item_w=28
     if _cliproxy_ui_grouped; then
-      items+=$'Actions\t\n'
+      item_lines+=("$(_llmproxy_menu_section "Actions" "$item_w")")
     fi
-    items+=$'Use preset\tSwitch claude/codex/gemini (auto-sync)\n'
-    items+=$'Pick model (all)\tChoose from /v1/models\n'
-    items+=$'Pick model (codex)\tOverride codex tiers (opus/sonnet/haiku)\n'
-    items+=$'Pick model (claude)\tOverride claude tiers (opus/sonnet/haiku)\n'
-    items+=$'Pick model (gemini)\tOverride gemini tiers (opus/sonnet/haiku)\n'
-    items+=$'Use model ID\tType exact model id\n'
-    items+=$'Set Codex thinking levels\topus/sonnet/haiku\n'
-    items+=$'Switch profile\tlocal/local2\n'
-    items+=$'UI settings\tTheme, layout, preview, shortcuts\n'
-    items+=$'Enable proxy\tUse CLIProxyAPI\n'
-    items+=$'Disable proxy\tUse official Claude\n'
-    items+=$'Toggle proxy\tSwitch on/off\n'
+    item_lines+=("$(_llmproxy_menu_item "Use preset" "Switch claude/codex/gemini (auto-sync)" "$item_w")")
+    item_lines+=("$(_llmproxy_menu_item "Pick model (all)" "Choose from /v1/models" "$item_w")")
+    item_lines+=("$(_llmproxy_menu_item "Pick model (codex)" "Override codex tiers (opus/sonnet/haiku)" "$item_w")")
+    item_lines+=("$(_llmproxy_menu_item "Pick model (claude)" "Override claude tiers (opus/sonnet/haiku)" "$item_w")")
+    item_lines+=("$(_llmproxy_menu_item "Pick model (gemini)" "Override gemini tiers (opus/sonnet/haiku)" "$item_w")")
+    item_lines+=("$(_llmproxy_menu_item "Use model ID" "Type exact model id" "$item_w")")
+    item_lines+=("$(_llmproxy_menu_item "Set Codex thinking levels" "opus/sonnet/haiku" "$item_w")")
+    item_lines+=("$(_llmproxy_menu_item "Switch profile" "local/local2" "$item_w")")
+    item_lines+=("$(_llmproxy_menu_item "UI settings" "Theme, layout, preview, shortcuts" "$item_w")")
+    item_lines+=("$(_llmproxy_menu_item "Enable proxy" "Use CLIProxyAPI" "$item_w")")
+    item_lines+=("$(_llmproxy_menu_item "Disable proxy" "Use official Claude" "$item_w")")
+    item_lines+=("$(_llmproxy_menu_item "Toggle proxy" "Switch on/off" "$item_w")")
     if _cliproxy_ui_grouped; then
-      items+=$'Diagnostics\t\n'
+      item_lines+=("$(_llmproxy_menu_section "Diagnostics" "$item_w")")
     fi
-    items+=$'Status\tShow current env/model\n'
-    items+=$'Env\tShow current mode\n'
-    items+=$'Auth check\t/v1/models\n'
-    items+=$'Doctor\tCheck deps/server\n'
-    items+=$'Auto-fix deps\tInstall missing tools\n'
-    items+=$'Setup wizard\tEnv + deps + rc\n'
+    item_lines+=("$(_llmproxy_menu_item "Status" "Show current env/model" "$item_w")")
+    item_lines+=("$(_llmproxy_menu_item "Env" "Show current mode" "$item_w")")
+    item_lines+=("$(_llmproxy_menu_item "Auth check" "/v1/models" "$item_w")")
+    item_lines+=("$(_llmproxy_menu_item "Doctor" "Check deps/server" "$item_w")")
+    item_lines+=("$(_llmproxy_menu_item "Auto-fix deps" "Install missing tools" "$item_w")")
+    item_lines+=("$(_llmproxy_menu_item "Setup wizard" "Env + deps + rc" "$item_w")")
     if _cliproxy_ui_grouped; then
-      items+=$'Server\t\n'
+      item_lines+=("$(_llmproxy_menu_section "Server" "$item_w")")
     fi
-    items+=$'Start server\tRun CLIProxyAPI\n'
-    items+=$'Stop server\tStop CLIProxyAPI\n'
-    items+=$'Restart server\tRestart CLIProxyAPI\n'
-    items+=$'Server status\tShow running state\n'
-    items+=$'Set run mode\tDirect/systemd\n'
-    items+=$'Install systemd service\tUser unit\n'
-    items+=$'Upgrade CLIProxyAPI\tLatest release\n'
-    items+=$'Backup binary\tTimestamped copy\n'
-    items+=$'Clear model override\tReset direct model\n'
-    items+=$'Exit\tClose menu\n'
+    item_lines+=("$(_llmproxy_menu_item "Start server" "Run CLIProxyAPI" "$item_w")")
+    item_lines+=("$(_llmproxy_menu_item "Stop server" "Stop CLIProxyAPI" "$item_w")")
+    item_lines+=("$(_llmproxy_menu_item "Restart server" "Restart CLIProxyAPI" "$item_w")")
+    item_lines+=("$(_llmproxy_menu_item "Server status" "Show running state" "$item_w")")
+    item_lines+=("$(_llmproxy_menu_item "Set run mode" "Direct/systemd" "$item_w")")
+    item_lines+=("$(_llmproxy_menu_item "Install systemd service" "User unit" "$item_w")")
+    item_lines+=("$(_llmproxy_menu_item "Upgrade CLIProxyAPI" "Latest release" "$item_w")")
+    item_lines+=("$(_llmproxy_menu_item "Backup binary" "Timestamped copy" "$item_w")")
+    item_lines+=("$(_llmproxy_menu_item "Clear model override" "Reset direct model" "$item_w")")
+    item_lines+=("$(_llmproxy_menu_item "Exit" "Close menu" "$item_w")")
+    items="${(F)item_lines}"
 
     _cliproxy_ui_no_xtrace
     local header=""
@@ -446,8 +475,11 @@ cliproxy_menu() {
     fi
 
     choice="${choice%%$'\t'*}"
+    choice="${choice%"${choice##*[![:space:]]}"}"
+    if [[ "$choice" == "Actions" || "$choice" == "Diagnostics" || "$choice" == "Server" || -z "$choice" ]]; then
+      continue
+    fi
     case "$choice" in
-      "Actions"|"Diagnostics"|"Server"|"") continue ;;
       "Use preset") _cliproxy_action_use_preset ;;
       "Pick model (all)") cliproxy_pick_model ;;
       "Pick model (codex)") cliproxy_pick_model "codex" "codex" ;;
