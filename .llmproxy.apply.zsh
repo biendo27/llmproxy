@@ -66,6 +66,14 @@ _cliproxy_apply() {
   [[ -z "$sonnet" && -n "$opus" ]] && sonnet="$opus"
   [[ -z "$haiku" && -n "$sonnet" ]] && haiku="$sonnet"
 
+  if ! _llmproxy_warn_mixed_providers "$opus" "$sonnet" "$haiku"; then
+    if [[ "${LLMPROXY_STRICT_PROVIDER:-0}" == "1" ]]; then
+      _cliproxy_log "strict provider mode: mixed tiers blocked"
+      _llmproxy_restore_env
+      return 1
+    fi
+  fi
+
   if [[ -n "$opus" ]]; then
     export ANTHROPIC_MODEL="$opus"
     export ANTHROPIC_DEFAULT_OPUS_MODEL="$opus"

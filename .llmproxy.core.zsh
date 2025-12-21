@@ -762,6 +762,7 @@ cliproxy_status() {
   printf "  opus    : %s\n" "$opus"
   printf "  sonnet  : %s\n" "$sonnet"
   printf "  haiku   : %s\n" "$haiku"
+  _llmproxy_warn_mixed_providers "$opus" "$sonnet" "$haiku"
 }
 
 cliproxy_help() {
