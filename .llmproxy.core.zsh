@@ -12,6 +12,50 @@ _cliproxy_log() {
   printf "[llmproxy] %s\n" "$*"
 }
 
+# Snapshot original Claude env once so we can restore when proxy is disabled.
+_llmproxy_snapshot_env() {
+  if [[ -n "${_LLMPROXY_SAVED:-}" ]]; then
+    return 0
+  fi
+  export _LLMPROXY_SAVED=1
+  export _LLMPROXY_ORIG_ANTHROPIC_BASE_URL="${ANTHROPIC_BASE_URL-}"
+  export _LLMPROXY_ORIG_ANTHROPIC_AUTH_TOKEN="${ANTHROPIC_AUTH_TOKEN-}"
+  export _LLMPROXY_ORIG_ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY-}"
+  export _LLMPROXY_ORIG_ANTHROPIC_MODEL="${ANTHROPIC_MODEL-}"
+  export _LLMPROXY_ORIG_ANTHROPIC_DEFAULT_OPUS_MODEL="${ANTHROPIC_DEFAULT_OPUS_MODEL-}"
+  export _LLMPROXY_ORIG_ANTHROPIC_DEFAULT_SONNET_MODEL="${ANTHROPIC_DEFAULT_SONNET_MODEL-}"
+  export _LLMPROXY_ORIG_ANTHROPIC_DEFAULT_HAIKU_MODEL="${ANTHROPIC_DEFAULT_HAIKU_MODEL-}"
+  export _LLMPROXY_ORIG_CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC="${CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC-}"
+}
+
+_llmproxy_restore_env() {
+  if [[ -z "${_LLMPROXY_SAVED:-}" ]]; then
+    unset ANTHROPIC_BASE_URL ANTHROPIC_AUTH_TOKEN ANTHROPIC_MODEL
+    unset ANTHROPIC_DEFAULT_OPUS_MODEL ANTHROPIC_DEFAULT_SONNET_MODEL ANTHROPIC_DEFAULT_HAIKU_MODEL
+    return 0
+  fi
+  export ANTHROPIC_BASE_URL="${_LLMPROXY_ORIG_ANTHROPIC_BASE_URL-}"
+  export ANTHROPIC_AUTH_TOKEN="${_LLMPROXY_ORIG_ANTHROPIC_AUTH_TOKEN-}"
+  export ANTHROPIC_API_KEY="${_LLMPROXY_ORIG_ANTHROPIC_API_KEY-}"
+  export ANTHROPIC_MODEL="${_LLMPROXY_ORIG_ANTHROPIC_MODEL-}"
+  export ANTHROPIC_DEFAULT_OPUS_MODEL="${_LLMPROXY_ORIG_ANTHROPIC_DEFAULT_OPUS_MODEL-}"
+  export ANTHROPIC_DEFAULT_SONNET_MODEL="${_LLMPROXY_ORIG_ANTHROPIC_DEFAULT_SONNET_MODEL-}"
+  export ANTHROPIC_DEFAULT_HAIKU_MODEL="${_LLMPROXY_ORIG_ANTHROPIC_DEFAULT_HAIKU_MODEL-}"
+  export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC="${_LLMPROXY_ORIG_CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC-}"
+}
+
+_llmproxy_clear_proxy_env() {
+  if [[ "${ANTHROPIC_BASE_URL-}" == "${CLIPROXY_URL-}" ]]; then
+    unset ANTHROPIC_BASE_URL
+  fi
+  if [[ "${ANTHROPIC_AUTH_TOKEN-}" == "${CLIPROXY_KEY-}" ]]; then
+    unset ANTHROPIC_AUTH_TOKEN
+  fi
+  # If proxy vars were in effect, also clear model overrides.
+  if [[ -z "${ANTHROPIC_BASE_URL-}" && -z "${ANTHROPIC_AUTH_TOKEN-}" ]]; then
+    unset ANTHROPIC_MODEL ANTHROPIC_DEFAULT_OPUS_MODEL ANTHROPIC_DEFAULT_SONNET_MODEL ANTHROPIC_DEFAULT_HAIKU_MODEL
+  fi
+}
 # Add thinking suffix if set and not already in the model string
 _cliproxy_with_thinking() {
   local model="$1"
@@ -151,6 +195,10 @@ PY
 }
 
 cliproxy_systemd_install() {
+  if ! command -v systemctl >/dev/null 2>&1; then
+    _cliproxy_log "systemctl not found (systemd unavailable on this OS)"
+    return 1
+  fi
   local bin config unit_dir unit svc
   bin="$(_cliproxy_server_bin)" || return 1
   config="$(_cliproxy_server_config)"
@@ -181,6 +229,10 @@ EOF
 }
 
 cliproxy_systemd_enable() {
+  if ! command -v systemctl >/dev/null 2>&1; then
+    _cliproxy_log "systemctl not found (systemd unavailable on this OS)"
+    return 1
+  fi
   local svc="${CLIPROXY_SYSTEMD_SERVICE:-cliproxyapi}"
   systemctl --user enable --now "${svc}.service"
 }
@@ -188,6 +240,10 @@ cliproxy_systemd_enable() {
 cliproxy_start() {
   local mode="${CLIPROXY_RUN_MODE:-direct}"
   if [[ "$mode" == "systemd" ]]; then
+    if ! command -v systemctl >/dev/null 2>&1; then
+      _cliproxy_log "systemctl not found (systemd unavailable on this OS)"
+      return 1
+    fi
     local svc="${CLIPROXY_SYSTEMD_SERVICE:-cliproxyapi}"
     systemctl --user start "${svc}.service"
     _cliproxy_log "systemd start: ${svc}.service"
@@ -214,6 +270,10 @@ cliproxy_start() {
 cliproxy_stop() {
   local mode="${CLIPROXY_RUN_MODE:-direct}"
   if [[ "$mode" == "systemd" ]]; then
+    if ! command -v systemctl >/dev/null 2>&1; then
+      _cliproxy_log "systemctl not found (systemd unavailable on this OS)"
+      return 1
+    fi
     local svc="${CLIPROXY_SYSTEMD_SERVICE:-cliproxyapi}"
     systemctl --user stop "${svc}.service"
     _cliproxy_log "systemd stop: ${svc}.service"
@@ -239,6 +299,10 @@ cliproxy_restart() {
 cliproxy_server_status() {
   local mode="${CLIPROXY_RUN_MODE:-direct}"
   if [[ "$mode" == "systemd" ]]; then
+    if ! command -v systemctl >/dev/null 2>&1; then
+      _cliproxy_log "systemctl not found (systemd unavailable on this OS)"
+      return 1
+    fi
     local svc="${CLIPROXY_SYSTEMD_SERVICE:-cliproxyapi}"
     systemctl --user status "${svc}.service"
     return 0
@@ -254,8 +318,8 @@ cliproxy_upgrade() {
   local os arch json url tag tmp archive newbin target running
   os="$(uname -s | tr '[:upper:]' '[:lower:]')"
   arch="$(_cliproxy_arch)"
-  if [[ "$os" != "linux" ]]; then
-    _cliproxy_log "upgrade only supported on linux for now"
+  if [[ "$os" != "linux" && "$os" != "darwin" ]]; then
+    _cliproxy_log "upgrade only supported on linux/macos for now"
     return 1
   fi
   if [[ -z "$arch" ]]; then
@@ -418,6 +482,12 @@ cliproxy_pick_model() {
 
 # Apply environment variables used by Claude Code
 _cliproxy_apply() {
+  _llmproxy_snapshot_env
+  if [[ "${LLMPROXY_MODE:-proxy}" == "direct" ]]; then
+    _llmproxy_restore_env
+    return
+  fi
+
   export ANTHROPIC_BASE_URL="$CLIPROXY_URL"
   export ANTHROPIC_AUTH_TOKEN="$CLIPROXY_KEY"
   unset ANTHROPIC_API_KEY
@@ -485,6 +555,27 @@ _cliproxy_apply() {
 }
 
 # Public commands
+llmproxy_on() {
+  export LLMPROXY_MODE="proxy"
+  _cliproxy_apply
+  _cliproxy_log "proxy enabled (Claude Code -> CLIProxyAPI)"
+}
+
+llmproxy_off() {
+  export LLMPROXY_MODE="direct"
+  _llmproxy_restore_env
+  _llmproxy_clear_proxy_env
+  _cliproxy_log "proxy disabled (use official Claude)"
+}
+
+llmproxy_toggle() {
+  if [[ "${LLMPROXY_MODE:-proxy}" == "direct" ]]; then
+    llmproxy_on
+  else
+    llmproxy_off
+  fi
+}
+
 cliproxy_use() {
   local name="$1"
   if [[ -z "$name" ]]; then
@@ -546,6 +637,7 @@ Commands:
   use <preset|model>       Switch preset or set model id
   pick-model [filter]      Pick model from /v1/models
   profile <local|local2>   Switch profile
+  on|off|toggle            Enable/disable proxy env (Claude official vs proxy)
   status                   Show current env/model status
   clear                    Clear model override
 
@@ -573,6 +665,9 @@ cliproxy() {
     use) cliproxy_use "$@" ;;
     pick-model) cliproxy_pick_model "$@" ;;
     profile) cliproxy_profile "$@" ;;
+    on) llmproxy_on ;;
+    off) llmproxy_off ;;
+    toggle) llmproxy_toggle ;;
     status) cliproxy_status ;;
     clear) cliproxy_clear ;;
     start) cliproxy_start ;;

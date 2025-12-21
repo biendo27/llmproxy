@@ -100,17 +100,20 @@ cliproxy_menu_text() {
     echo "6) Use model ID (type it manually)"
     echo "7) Set Codex thinking levels (opus/sonnet/haiku)"
     echo "8) Switch profile (local/local2)"
-    echo "9) Start server"
-    echo "10) Stop server"
-    echo "11) Restart server"
-    echo "12) Server status"
-    echo "13) Set run mode (direct/systemd)"
-    echo "14) Install systemd service"
-    echo "15) Upgrade CLIProxyAPI"
-    echo "16) Backup CLIProxyAPI binary"
-    echo "17) Status"
-    echo "18) Clear model override"
-    echo "19) Exit"
+    echo "9) Enable proxy (use CLIProxyAPI)"
+    echo "10) Disable proxy (use official Claude)"
+    echo "11) Toggle proxy"
+    echo "12) Start server"
+    echo "13) Stop server"
+    echo "14) Restart server"
+    echo "15) Server status"
+    echo "16) Set run mode (direct/systemd)"
+    echo "17) Install systemd service"
+    echo "18) Upgrade CLIProxyAPI"
+    echo "19) Backup CLIProxyAPI binary"
+    echo "20) Status"
+    echo "21) Clear model override"
+    echo "22) Exit"
     read -r "choice?Select: "
 
     case "$choice" in
@@ -122,17 +125,20 @@ cliproxy_menu_text() {
       6) _cliproxy_action_use_model_id ;;
       7) _cliproxy_action_codex_thinking ;;
       8) _cliproxy_action_switch_profile ;;
-      9) cliproxy_start ;;
-      10) cliproxy_stop ;;
-      11) cliproxy_restart ;;
-      12) cliproxy_server_status ;;
-      13) _cliproxy_action_run_mode ;;
-      14) _cliproxy_action_systemd_install ;;
-      15) cliproxy_upgrade ;;
-      16) cliproxy_backup ;;
-      17) cliproxy_status ;;
-      18) cliproxy_clear ;;
-      19) break ;;
+      9) llmproxy_on ;;
+      10) llmproxy_off ;;
+      11) llmproxy_toggle ;;
+      12) cliproxy_start ;;
+      13) cliproxy_stop ;;
+      14) cliproxy_restart ;;
+      15) cliproxy_server_status ;;
+      16) _cliproxy_action_run_mode ;;
+      17) _cliproxy_action_systemd_install ;;
+      18) cliproxy_upgrade ;;
+      19) cliproxy_backup ;;
+      20) cliproxy_status ;;
+      21) cliproxy_clear ;;
+      22) break ;;
       *) echo "Invalid choice." ;;
     esac
   done
@@ -159,6 +165,9 @@ cliproxy_menu() {
       "Use model ID" \
       "Set Codex thinking levels" \
       "Switch profile" \
+      "Enable proxy (use CLIProxyAPI)" \
+      "Disable proxy (use official Claude)" \
+      "Toggle proxy" \
       "Start server" \
       "Stop server" \
       "Restart server" \
@@ -180,6 +189,9 @@ cliproxy_menu() {
       "Use model ID") _cliproxy_action_use_model_id ;;
       "Set Codex thinking levels") _cliproxy_action_codex_thinking ;;
       "Switch profile") _cliproxy_action_switch_profile ;;
+      "Enable proxy (use CLIProxyAPI)") llmproxy_on ;;
+      "Disable proxy (use official Claude)") llmproxy_off ;;
+      "Toggle proxy") llmproxy_toggle ;;
       "Start server") cliproxy_start ;;
       "Stop server") cliproxy_stop ;;
       "Restart server") cliproxy_restart ;;

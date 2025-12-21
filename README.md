@@ -33,6 +33,28 @@ Example (this repo path):
 [ -f "$HOME/cliproxyapi/cliproxy-config/.llmproxy.zsh" ] && source "$HOME/cliproxyapi/cliproxy-config/.llmproxy.zsh"
 ```
 
+## Prerequisites
+
+Required:
+- `zsh`
+- `curl`
+- `python3`
+
+Optional (for better UI):
+- `fzf` (interactive picker)
+
+Install examples:
+
+Linux (Ubuntu/Debian):
+```zsh
+sudo apt update && sudo apt install -y curl python3 fzf
+```
+
+macOS (Homebrew):
+```zsh
+brew install curl python fzf
+```
+
 ## Usage
 
 ```zsh
@@ -55,6 +77,23 @@ Legacy alias:
 cliproxy ...   # still works for backward compatibility
 ```
 
+## Switch between proxy and official Claude
+
+You can quickly disable the proxy env (use Claude official subscription) and
+enable it back when needed:
+
+```zsh
+llmproxy off      # use official Claude (no proxy env)
+llmproxy on       # re-enable proxy env
+llmproxy toggle   # switch between the two
+```
+
+Persist default mode in `.llmproxy.env`:
+
+```zsh
+export LLMPROXY_MODE="proxy"  # or "direct"
+```
+
 ## Server setup (config.yaml)
 
 These scripts talk to CLIProxyAPI, so your `config.yaml` must match the
@@ -74,6 +113,29 @@ Checklist:
   new plaintext value in `config.yaml` and restart the server.
 
 After editing `config.yaml`, restart CLIProxyAPI.
+
+## macOS support
+
+The tools work on macOS with a few notes:
+
+- `llmproxy upgrade` supports **darwin** (arm64/amd64) and will download the
+  correct binary for your CPU.
+- `systemd` is **not available** on macOS, so use **direct** mode:
+
+```zsh
+llmproxy run-mode direct
+```
+
+Supported on macOS:
+- `llmproxy on/off/toggle`
+- `llmproxy use / pick-model / status`
+- `llmproxy upgrade`
+- `llmproxy` UI (fzf)
+
+Not applicable on macOS:
+- `llmproxy systemd-install`
+- `llmproxy systemd-enable`
+- `llmproxy run-mode systemd`
 
 ## Run mode (direct vs systemd)
 
@@ -99,6 +161,8 @@ Systemd setup (user service):
 llmproxy systemd-install   # write unit file
 llmproxy systemd-enable    # enable + start
 ```
+
+Note: systemd is Linux-only. On macOS, use **direct** mode.
 
 Upgrade to latest release:
 
