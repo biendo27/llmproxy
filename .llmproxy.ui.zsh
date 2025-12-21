@@ -100,20 +100,23 @@ cliproxy_menu_text() {
     echo "6) Use model ID (type it manually)"
     echo "7) Set Codex thinking levels (opus/sonnet/haiku)"
     echo "8) Switch profile (local/local2)"
-    echo "9) Enable proxy (use CLIProxyAPI)"
-    echo "10) Disable proxy (use official Claude)"
+    echo "9) Enable proxy (CLIProxyAPI)"
+    echo "10) Disable proxy (official Claude)"
     echo "11) Toggle proxy"
-    echo "12) Start server"
-    echo "13) Stop server"
-    echo "14) Restart server"
-    echo "15) Server status"
-    echo "16) Set run mode (direct/systemd)"
-    echo "17) Install systemd service"
-    echo "18) Upgrade CLIProxyAPI"
-    echo "19) Backup CLIProxyAPI binary"
-    echo "20) Status"
-    echo "21) Clear model override"
-    echo "22) Exit"
+    echo "12) Setup wizard (env + deps + rc)"
+    echo "13) Auto-fix deps"
+    echo "14) Doctor (check deps/server)"
+    echo "15) Start server"
+    echo "16) Stop server"
+    echo "17) Restart server"
+    echo "18) Server status"
+    echo "19) Set run mode (direct/systemd)"
+    echo "20) Install systemd service"
+    echo "21) Upgrade CLIProxyAPI"
+    echo "22) Backup CLIProxyAPI binary"
+    echo "23) Status"
+    echo "24) Clear model override"
+    echo "25) Exit"
     read -r "choice?Select: "
 
     case "$choice" in
@@ -128,17 +131,20 @@ cliproxy_menu_text() {
       9) llmproxy_on ;;
       10) llmproxy_off ;;
       11) llmproxy_toggle ;;
-      12) cliproxy_start ;;
-      13) cliproxy_stop ;;
-      14) cliproxy_restart ;;
-      15) cliproxy_server_status ;;
-      16) _cliproxy_action_run_mode ;;
-      17) _cliproxy_action_systemd_install ;;
-      18) cliproxy_upgrade ;;
-      19) cliproxy_backup ;;
-      20) cliproxy_status ;;
-      21) cliproxy_clear ;;
-      22) break ;;
+      12) llmproxy_setup ;;
+      13) llmproxy_fix ;;
+      14) llmproxy_doctor ;;
+      15) cliproxy_start ;;
+      16) cliproxy_stop ;;
+      17) cliproxy_restart ;;
+      18) cliproxy_server_status ;;
+      19) _cliproxy_action_run_mode ;;
+      20) _cliproxy_action_systemd_install ;;
+      21) cliproxy_upgrade ;;
+      22) cliproxy_backup ;;
+      23) cliproxy_status ;;
+      24) cliproxy_clear ;;
+      25) break ;;
       *) echo "Invalid choice." ;;
     esac
   done
@@ -157,51 +163,57 @@ cliproxy_menu() {
   while true; do
     local choice
     choice=$(printf "%s\n" \
-      "Use preset" \
-      "Pick model (all)" \
-      "Pick model (codex)" \
-      "Pick model (claude)" \
-      "Pick model (gemini)" \
-      "Use model ID" \
-      "Set Codex thinking levels" \
-      "Switch profile" \
-      "Enable proxy (use CLIProxyAPI)" \
-      "Disable proxy (use official Claude)" \
-      "Toggle proxy" \
-      "Start server" \
-      "Stop server" \
-      "Restart server" \
-      "Server status" \
-      "Set run mode (direct/systemd)" \
-      "Install systemd service" \
-      "Upgrade CLIProxyAPI" \
-      "Backup CLIProxyAPI binary" \
-      "Status" \
-      "Clear model override" \
+      "Use preset - switch claude/codex/gemini" \
+      "Pick model (all) - from /v1/models" \
+      "Pick model (codex) - from /v1/models" \
+      "Pick model (claude) - from /v1/models" \
+      "Pick model (gemini) - from /v1/models" \
+      "Use model ID - type manually" \
+      "Set Codex thinking levels - opus/sonnet/haiku" \
+      "Switch profile - local/local2" \
+      "Enable proxy - use CLIProxyAPI" \
+      "Disable proxy - use official Claude" \
+      "Toggle proxy - switch on/off" \
+      "Setup wizard - env + deps + rc" \
+      "Auto-fix deps - install missing tools" \
+      "Doctor - check deps/server" \
+      "Start server - run CLIProxyAPI" \
+      "Stop server - stop CLIProxyAPI" \
+      "Restart server - restart CLIProxyAPI" \
+      "Server status - show running state" \
+      "Set run mode - direct/systemd" \
+      "Install systemd service - user unit" \
+      "Upgrade CLIProxyAPI - latest release" \
+      "Backup binary - timestamped copy" \
+      "Status - show current env/model" \
+      "Clear model override - reset" \
       "Exit" | fzf --prompt="LLMProxy> " --height=40% --border --no-multi --header="$(_cliproxy_status_line)") || return
 
     case "$choice" in
-      "Use preset") _cliproxy_action_use_preset ;;
-      "Pick model (all)") cliproxy_pick_model ;;
-      "Pick model (codex)") cliproxy_pick_model "codex" "codex" ;;
-      "Pick model (claude)") cliproxy_pick_model "^claude-|^gemini-claude-" "claude" ;;
-      "Pick model (gemini)") cliproxy_pick_model "^gemini-" "gemini" ;;
-      "Use model ID") _cliproxy_action_use_model_id ;;
-      "Set Codex thinking levels") _cliproxy_action_codex_thinking ;;
-      "Switch profile") _cliproxy_action_switch_profile ;;
-      "Enable proxy (use CLIProxyAPI)") llmproxy_on ;;
-      "Disable proxy (use official Claude)") llmproxy_off ;;
-      "Toggle proxy") llmproxy_toggle ;;
-      "Start server") cliproxy_start ;;
-      "Stop server") cliproxy_stop ;;
-      "Restart server") cliproxy_restart ;;
-      "Server status") cliproxy_server_status ;;
-      "Set run mode (direct/systemd)") _cliproxy_action_run_mode ;;
-      "Install systemd service") _cliproxy_action_systemd_install ;;
-      "Upgrade CLIProxyAPI") cliproxy_upgrade ;;
-      "Backup CLIProxyAPI binary") cliproxy_backup ;;
-      "Status") cliproxy_status ;;
-      "Clear model override") cliproxy_clear ;;
+      "Use preset - "* ) _cliproxy_action_use_preset ;;
+      "Pick model (all) - "* ) cliproxy_pick_model ;;
+      "Pick model (codex) - "* ) cliproxy_pick_model "codex" "codex" ;;
+      "Pick model (claude) - "* ) cliproxy_pick_model "^claude-|^gemini-claude-" "claude" ;;
+      "Pick model (gemini) - "* ) cliproxy_pick_model "^gemini-" "gemini" ;;
+      "Use model ID - "* ) _cliproxy_action_use_model_id ;;
+      "Set Codex thinking levels - "* ) _cliproxy_action_codex_thinking ;;
+      "Switch profile - "* ) _cliproxy_action_switch_profile ;;
+      "Enable proxy - "* ) llmproxy_on ;;
+      "Disable proxy - "* ) llmproxy_off ;;
+      "Toggle proxy - "* ) llmproxy_toggle ;;
+      "Setup wizard - "* ) llmproxy_setup ;;
+      "Auto-fix deps - "* ) llmproxy_fix ;;
+      "Doctor - "* ) llmproxy_doctor ;;
+      "Start server - "* ) cliproxy_start ;;
+      "Stop server - "* ) cliproxy_stop ;;
+      "Restart server - "* ) cliproxy_restart ;;
+      "Server status - "* ) cliproxy_server_status ;;
+      "Set run mode - "* ) _cliproxy_action_run_mode ;;
+      "Install systemd service - "* ) _cliproxy_action_systemd_install ;;
+      "Upgrade CLIProxyAPI - "* ) cliproxy_upgrade ;;
+      "Backup binary - "* ) cliproxy_backup ;;
+      "Status - "* ) cliproxy_status ;;
+      "Clear model override - "* ) cliproxy_clear ;;
       "Exit") break ;;
     esac
   done

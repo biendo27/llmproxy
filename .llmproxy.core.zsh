@@ -155,6 +155,236 @@ _cliproxy_arch() {
   esac
 }
 
+_llmproxy_has_cmd() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+_llmproxy_default_rc() {
+  if [[ -n "${LLMPROXY_RC:-}" ]]; then
+    echo "$LLMPROXY_RC"
+    return
+  fi
+  if [[ -n "${SHELL:-}" && "${SHELL}" == *"zsh" ]]; then
+    echo "$HOME/.zshrc"
+    return
+  fi
+  if [[ -f "$HOME/.zshrc" ]]; then
+    echo "$HOME/.zshrc"
+    return
+  fi
+  echo "$HOME/.bashrc"
+}
+
+llmproxy_install() {
+  local rc line start end bin_dir src link
+  rc="${1:-$(_llmproxy_default_rc)}"
+  start="# >>> llmproxy >>>"
+  end="# <<< llmproxy <<<"
+  line='if command -v llmproxy >/dev/null 2>&1; then eval "$(llmproxy init)"; fi'
+
+  bin_dir="$HOME/.local/bin"
+  src="${CLIPROXY_HOME:-$HOME/cliproxyapi/llmproxy-config}/llmproxy"
+  link="$bin_dir/llmproxy"
+  mkdir -p "$bin_dir"
+  if [[ -f "$src" ]]; then
+    ln -sf "$src" "$link"
+  fi
+
+  python3 - "$rc" "$start" "$end" "$line" <<'PY'
+import sys
+rc, start, end, line = sys.argv[1:]
+try:
+    data = open(rc, "r", encoding="utf-8").read().splitlines(keepends=True)
+except FileNotFoundError:
+    data = []
+
+out = []
+in_block = False
+found = False
+for l in data:
+    if l.strip() == start:
+        in_block = True
+        found = True
+        out.append(start + "\n")
+        out.append(line + "\n")
+        out.append(end + "\n")
+        continue
+    if in_block:
+        if l.strip() == end:
+            in_block = False
+        continue
+    out.append(l)
+
+if not found:
+    if out and not out[-1].endswith("\n"):
+        out[-1] += "\n"
+    if out and out[-1].strip():
+        out.append("\n")
+    out.append(start + "\n")
+    out.append(line + "\n")
+    out.append(end + "\n")
+
+open(rc, "w", encoding="utf-8").write("".join(out))
+print(rc)
+PY
+
+  _cliproxy_log "installed auto-source in: ${rc}"
+}
+
+llmproxy_fix() {
+  local os missing=()
+  os="$(uname -s | tr '[:upper:]' '[:lower:]')"
+  for cmd in curl python3 fzf; do
+    if ! _llmproxy_has_cmd "$cmd"; then
+      missing+=("$cmd")
+    fi
+  done
+  if (( ${#missing[@]} == 0 )); then
+    _cliproxy_log "no missing deps"
+    return 0
+  fi
+
+  _cliproxy_log "installing: ${missing[*]}"
+  if [[ "$os" == "linux" ]]; then
+    if _llmproxy_has_cmd apt; then
+      sudo apt update && sudo apt install -y curl python3 fzf
+      return $?
+    fi
+    _cliproxy_log "apt not found; install manually: ${missing[*]}"
+    return 1
+  fi
+  if [[ "$os" == "darwin" ]]; then
+    if _llmproxy_has_cmd brew; then
+      brew install curl python fzf
+      return $?
+    fi
+    _cliproxy_log "brew not found; install Homebrew first"
+    return 1
+  fi
+
+  _cliproxy_log "unsupported OS; install manually: ${missing[*]}"
+  return 1
+}
+
+llmproxy_doctor() {
+  _cliproxy_log "doctor"
+  local os arch missing=0
+  os="$(uname -s | tr '[:upper:]' '[:lower:]')"
+  arch="$(_cliproxy_arch)"
+  printf "  os       : %s\n" "$os"
+  printf "  arch     : %s\n" "${arch:-unknown}"
+  printf "  mode     : %s\n" "${LLMPROXY_MODE:-proxy}"
+  printf "  run-mode : %s\n" "${CLIPROXY_RUN_MODE:-direct}"
+
+  for cmd in zsh curl python3; do
+    if _llmproxy_has_cmd "$cmd"; then
+      printf "  %s     : ok\n" "$cmd"
+    else
+      printf "  %s     : missing\n" "$cmd"
+      missing=1
+    fi
+  done
+  if _llmproxy_has_cmd fzf; then
+    printf "  fzf     : ok (UI picker)\n"
+  else
+    printf "  fzf     : missing (text menu only)\n"
+  fi
+
+  if [[ -n "${CLIPROXY_URL:-}" && -n "${CLIPROXY_KEY:-}" ]]; then
+    if curl -fsS -H "Authorization: Bearer ${CLIPROXY_KEY}" \
+      "${CLIPROXY_URL}/v1/models" >/dev/null 2>&1; then
+      printf "  server  : reachable (%s)\n" "$CLIPROXY_URL"
+    else
+      printf "  server  : not reachable (%s)\n" "$CLIPROXY_URL"
+    fi
+  else
+    printf "  server  : CLIPROXY_URL/KEY not set\n"
+  fi
+
+  if [[ "$os" == "darwin" ]]; then
+    printf "  systemd : not available (macOS)\n"
+  else
+    if _llmproxy_has_cmd systemctl; then
+      printf "  systemd : available\n"
+    else
+      printf "  systemd : not available\n"
+    fi
+  fi
+
+  if (( missing )); then
+    _cliproxy_log "missing prerequisites detected (see README)"
+  fi
+}
+
+llmproxy_setup() {
+  local home env example base_url key run_mode
+  home="${CLIPROXY_HOME:-$HOME/cliproxyapi/llmproxy-config}"
+  env="${CLIPROXY_ENV:-$home/.llmproxy.env}"
+  example="$home/.llmproxy.env.example"
+  llmproxy_doctor
+  local ans
+  read -r "ans?Auto-fix missing deps? (y/N): "
+  if [[ "$ans" == "y" || "$ans" == "Y" ]]; then
+    llmproxy_fix
+  fi
+  if [[ ! -f "$env" ]]; then
+    if [[ -f "$example" ]]; then
+      cp "$example" "$env"
+      _cliproxy_log "created $env from template"
+    else
+      _cliproxy_log "template not found: $example"
+      return 1
+    fi
+  fi
+
+  local proxy_mode preset rc_path
+  read -r "base_url?Base URL [${CLIPROXY_URL_LOCAL:-http://127.0.0.1:8317}]: "
+  base_url="${base_url:-${CLIPROXY_URL_LOCAL:-http://127.0.0.1:8317}}"
+  read -r "key?API key (CLIPROXY_KEY_LOCAL) [leave empty to keep]: "
+  read -r "run_mode?Run mode (direct/systemd) [${CLIPROXY_RUN_MODE:-direct}]: "
+  run_mode="${run_mode:-${CLIPROXY_RUN_MODE:-direct}}"
+  read -r "proxy_mode?Proxy mode (proxy/direct) [${LLMPROXY_MODE:-proxy}]: "
+  proxy_mode="${proxy_mode:-${LLMPROXY_MODE:-proxy}}"
+  read -r "preset?Preset (claude/codex/gemini/antigravity) [${CLIPROXY_PRESET:-claude}]: "
+  preset="${preset:-${CLIPROXY_PRESET:-claude}}"
+
+  python3 - "$env" "$base_url" "$key" "$run_mode" "$proxy_mode" "$preset" <<'PY'
+import sys, re
+path, base_url, key, run_mode, proxy_mode, preset = sys.argv[1:7]
+data = open(path, "r", encoding="utf-8").read().splitlines(keepends=True)
+def set_kv(lines, k, v):
+    out = []
+    found = False
+    for l in lines:
+        if l.startswith(f'export {k}='):
+            out.append(f'export {k}="{v}"\\n')
+            found = True
+        else:
+            out.append(l)
+    if not found:
+        if out and not out[-1].endswith("\\n"):
+            out[-1] += "\\n"
+        out.append(f'export {k}="{v}"\\n')
+    return out
+
+data = set_kv(data, "CLIPROXY_URL_LOCAL", base_url)
+if key:
+    data = set_kv(data, "CLIPROXY_KEY_LOCAL", key)
+data = set_kv(data, "CLIPROXY_RUN_MODE", run_mode)
+data = set_kv(data, "LLMPROXY_MODE", proxy_mode)
+data = set_kv(data, "CLIPROXY_PRESET", preset)
+open(path, "w", encoding="utf-8").write("".join(data))
+PY
+
+  read -r "ans?Install auto-source into shell rc? (Y/n): "
+  if [[ -z "$ans" || "$ans" == "y" || "$ans" == "Y" ]]; then
+    rc_path="$(_llmproxy_default_rc)"
+    llmproxy_install "$rc_path"
+  fi
+
+  _cliproxy_log "setup complete; reload shell to apply"
+}
+
 cliproxy_run_mode() {
   local mode="${1:-}"
   local persist="${2:-}"
@@ -638,6 +868,10 @@ Commands:
   pick-model [filter]      Pick model from /v1/models
   profile <local|local2>   Switch profile
   on|off|toggle            Enable/disable proxy env (Claude official vs proxy)
+  setup                    Wizard: env + auto-source + deps
+  install [rcfile]         Add auto-source to shell rc
+  fix                      Auto-install missing deps
+  doctor                   Check environment and dependencies
   status                   Show current env/model status
   clear                    Clear model override
 
@@ -668,6 +902,10 @@ cliproxy() {
     on) llmproxy_on ;;
     off) llmproxy_off ;;
     toggle) llmproxy_toggle ;;
+    setup) llmproxy_setup ;;
+    install) llmproxy_install "$@" ;;
+    fix) llmproxy_fix ;;
+    doctor) llmproxy_doctor ;;
     status) cliproxy_status ;;
     clear) cliproxy_clear ;;
     start) cliproxy_start ;;

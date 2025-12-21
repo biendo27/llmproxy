@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+resolve_path() {
+  python3 - <<'PY' "$1"
+import os, sys
+print(os.path.realpath(sys.argv[1]))
+PY
+}
+
+SCRIPT_PATH="$(resolve_path "$0")"
+HERE="$(cd -- "$(dirname -- "$SCRIPT_PATH")" && pwd)"
+
+if [[ "${1:-}" == "init" ]]; then
+  echo "source \"$HERE/.llmproxy.zsh\""
+  exit 0
+fi
+
+source "$HERE/.llmproxy.zsh"
+llmproxy "$@"

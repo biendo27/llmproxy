@@ -17,20 +17,26 @@ and reuse on other machines.
 2) Copy the env template and fill in real keys:
 
 ```zsh
-cp /path/to/cliproxy-config/.llmproxy.env.example /path/to/cliproxy-config/.llmproxy.env
+cp /path/to/llmproxy-config/.llmproxy.env.example /path/to/llmproxy-config/.llmproxy.env
 ```
 
-3) Source the bootstrap file:
+3) Run setup wizard (recommended):
 
 ```zsh
-source /path/to/cliproxy-config/.llmproxy.zsh
+./llmproxy setup
+```
+
+or source the bootstrap file manually:
+
+```zsh
+source /path/to/llmproxy-config/.llmproxy.zsh
 ```
 
 Optional: add the line above into `~/.zshrc` so it loads automatically.
-Example (this repo path):
+Example (generic, path-safe):
 
 ```zsh
-[ -f "$HOME/cliproxyapi/cliproxy-config/.llmproxy.zsh" ] && source "$HOME/cliproxyapi/cliproxy-config/.llmproxy.zsh"
+if command -v llmproxy >/dev/null 2>&1; then eval "$(llmproxy init)"; fi
 ```
 
 ## Prerequisites
@@ -93,6 +99,18 @@ Persist default mode in `.llmproxy.env`:
 ```zsh
 export LLMPROXY_MODE="proxy"  # or "direct"
 ```
+
+## One-time setup & health check
+
+```zsh
+llmproxy setup     # wizard: env + auto-source + deps
+llmproxy install   # add auto-source to shell rc
+llmproxy fix       # auto-install missing deps
+llmproxy doctor    # check deps, server reachability, OS, mode
+```
+
+Tip: after git clone, you can run `./llmproxy setup` directly from this folder
+even before adding anything to your shell rc.
 
 ## Server setup (config.yaml)
 
@@ -197,5 +215,5 @@ Defaults are defined in `.llmproxy.env`:
 After editing `.llmproxy.env`, run:
 
 ```zsh
-source /path/to/cliproxy-config/.llmproxy.zsh
+source /path/to/llmproxy-config/.llmproxy.zsh
 ```
