@@ -11,7 +11,7 @@ and macOS, with a simple menu or one‑line commands.
 1) **Clone the repo and go to the folder**
 
 ```zsh
-git clone <YOUR_REPO_URL>
+git clone git@github.com:biendo27/llmproxy.git
 cd llmproxy
 ```
 
