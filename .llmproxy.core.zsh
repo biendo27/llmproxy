@@ -110,6 +110,72 @@ for m in sorted(set(filter(None, models))):
 PY
 }
 
+_llmproxy_pick_best() {
+  local models="$1"
+  shift || true
+  local pat match
+  for pat in "$@"; do
+    match="$(printf "%s\n" "$models" | grep -E "$pat" | tail -n 1)"
+    if [[ -n "$match" ]]; then
+      echo "$match"
+      return 0
+    fi
+  done
+  return 1
+}
+
+_llmproxy_model_exists() {
+  local models="$1"
+  local name="$2"
+  [[ -n "$name" ]] && printf "%s\n" "$models" | grep -Fxq -- "$name"
+}
+
+_llmproxy_sync_preset_models() {
+  local preset="$1"
+  [[ "${LLMPROXY_AUTO_SYNC:-1}" == "0" ]] && return 0
+  local models
+  models="$(_cliproxy_list_models)" || return 1
+
+  case "$preset" in
+    claude)
+      if ! _llmproxy_model_exists "$models" "${CLIPROXY_CLAUDE_OPUS:-}"; then
+        CLIPROXY_CLAUDE_OPUS="$(_llmproxy_pick_best "$models" '^claude-opus-')"
+      fi
+      if ! _llmproxy_model_exists "$models" "${CLIPROXY_CLAUDE_SONNET:-}"; then
+        CLIPROXY_CLAUDE_SONNET="$(_llmproxy_pick_best "$models" '^claude-sonnet-')"
+      fi
+      if ! _llmproxy_model_exists "$models" "${CLIPROXY_CLAUDE_HAIKU:-}"; then
+        CLIPROXY_CLAUDE_HAIKU="$(_llmproxy_pick_best "$models" '^claude-haiku-')"
+      fi
+      ;;
+    codex)
+      if ! _llmproxy_model_exists "$models" "${CLIPROXY_CODEX_OPUS:-}"; then
+        CLIPROXY_CODEX_OPUS="$(_llmproxy_pick_best "$models" '^gpt-5\\.2-codex$' '^gpt-5-codex$' '^gpt-5\\.1-codex-max$' '^gpt-5\\.1-codex$')"
+      fi
+      if ! _llmproxy_model_exists "$models" "${CLIPROXY_CODEX_SONNET:-}"; then
+        CLIPROXY_CODEX_SONNET="$(_llmproxy_pick_best "$models" '^gpt-5\\.1-codex-max$' '^gpt-5\\.1-codex$' '^gpt-5-codex$')"
+      fi
+      if ! _llmproxy_model_exists "$models" "${CLIPROXY_CODEX_HAIKU:-}"; then
+        CLIPROXY_CODEX_HAIKU="$(_llmproxy_pick_best "$models" '^gpt-5\\.1-codex-mini$' '^gpt-5-codex-mini$')"
+      fi
+      ;;
+    gemini)
+      if ! _llmproxy_model_exists "$models" "${CLIPROXY_GEMINI_OPUS:-}"; then
+        CLIPROXY_GEMINI_OPUS="$(_llmproxy_pick_best "$models" '^gemini-3-pro' '^gemini-2\\.5-pro$')"
+      fi
+      if ! _llmproxy_model_exists "$models" "${CLIPROXY_GEMINI_SONNET:-}"; then
+        CLIPROXY_GEMINI_SONNET="$(_llmproxy_pick_best "$models" '^gemini-3-flash' '^gemini-2\\.5-flash$')"
+      fi
+      if ! _llmproxy_model_exists "$models" "${CLIPROXY_GEMINI_HAIKU:-}"; then
+        CLIPROXY_GEMINI_HAIKU="$(_llmproxy_pick_best "$models" '^gemini-2\\.5-flash-lite$' '^gemini-2\\.5-flash$')"
+      fi
+      ;;
+    *)
+      return 0
+      ;;
+  esac
+}
+
 _cliproxy_server_bin() {
   if [[ -n "${CLIPROXY_BIN:-}" && -x "${CLIPROXY_BIN}" ]]; then
     echo "$CLIPROXY_BIN"
@@ -156,6 +222,19 @@ _cliproxy_arch() {
 
 _llmproxy_has_cmd() {
   command -v "$1" >/dev/null 2>&1
+}
+
+_llmproxy_mask() {
+  local v="$1"
+  if [[ -z "$v" ]]; then
+    echo ""
+    return
+  fi
+  if (( ${#v} <= 8 )); then
+    echo "****"
+    return
+  fi
+  echo "${v:0:4}****${v: -4}"
 }
 
 _llmproxy_path_has_local_bin() {
@@ -329,6 +408,42 @@ llmproxy_doctor() {
   if (( missing )); then
     _cliproxy_log "missing prerequisites detected (see README)"
   fi
+}
+
+llmproxy_env() {
+  _cliproxy_log "env"
+  printf "  mode       : %s\n" "${LLMPROXY_MODE:-proxy}"
+  printf "  run-mode   : %s\n" "${CLIPROXY_RUN_MODE:-direct}"
+  printf "  base_url   : %s\n" "${CLIPROXY_URL:-}"
+  printf "  key        : %s\n" "$(_llmproxy_mask "${CLIPROXY_KEY:-}")"
+  printf "  model      : %s\n" "$(_cliproxy_current_model)"
+  printf "  ANTHROPIC_BASE_URL : %s\n" "${ANTHROPIC_BASE_URL-}"
+  printf "  ANTHROPIC_AUTH_TOKEN : %s\n" "$(_llmproxy_mask "${ANTHROPIC_AUTH_TOKEN-}")"
+  printf "  ANTHROPIC_MODEL : %s\n" "${ANTHROPIC_MODEL-}"
+}
+
+llmproxy_whoami() {
+  _cliproxy_log "auth check"
+  if [[ -z "${CLIPROXY_URL:-}" || -z "${CLIPROXY_KEY:-}" ]]; then
+    _cliproxy_log "CLIPROXY_URL/CLIPROXY_KEY not set"
+    return 1
+  fi
+  local json
+  json="$(curl -fsS -H "Authorization: Bearer ${CLIPROXY_KEY}" \
+    "${CLIPROXY_URL}/v1/models" 2>/dev/null)" || {
+    _cliproxy_log "auth failed (cannot reach /v1/models)"
+    return 1
+  }
+  python3 - <<'PY' "$json" "$(_cliproxy_current_model)"
+import json, sys
+data = json.loads(sys.argv[1])
+cur = sys.argv[2]
+models = [m.get("id") for m in data.get("data", []) if isinstance(m, dict)]
+models = [m for m in models if m]
+print(f"  models    : {len(models)} available")
+if cur:
+    print(f"  current  : {cur} ({'ok' if cur in models else 'not found'})")
+PY
 }
 
 llmproxy_setup() {
@@ -842,6 +957,7 @@ cliproxy_use() {
     claude|codex|gemini|antigravity)
       export CLIPROXY_PRESET="$name"
       export CLIPROXY_MODEL=""
+      _llmproxy_sync_preset_models "$name"
       ;;
     *)
       export CLIPROXY_MODEL="$name"
@@ -896,6 +1012,9 @@ Commands:
   install [rcfile]         Add auto-source to shell rc
   fix                      Auto-install missing deps
   doctor                   Check environment and dependencies
+  env                      Show current env + mode
+  whoami                   Check auth via /v1/models
+  sync-models <preset>     Sync preset models from /v1/models
   status                   Show current env/model status
   clear                    Clear model override
 
@@ -930,6 +1049,9 @@ cliproxy() {
     install) llmproxy_install "$@" ;;
     fix) llmproxy_fix ;;
     doctor) llmproxy_doctor ;;
+    env) llmproxy_env ;;
+    whoami) llmproxy_whoami ;;
+    sync-models) _llmproxy_sync_preset_models "${1:-}"; _cliproxy_apply ;;
     status) cliproxy_status ;;
     clear) cliproxy_clear ;;
     start) cliproxy_start ;;

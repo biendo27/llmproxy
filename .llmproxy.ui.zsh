@@ -106,17 +106,19 @@ cliproxy_menu_text() {
     echo "12) Setup wizard (env + deps + rc)"
     echo "13) Auto-fix deps"
     echo "14) Doctor (check deps/server)"
-    echo "15) Start server"
-    echo "16) Stop server"
-    echo "17) Restart server"
-    echo "18) Server status"
-    echo "19) Set run mode (direct/systemd)"
-    echo "20) Install systemd service"
-    echo "21) Upgrade CLIProxyAPI"
-    echo "22) Backup CLIProxyAPI binary"
-    echo "23) Status"
-    echo "24) Clear model override"
-    echo "25) Exit"
+    echo "15) Env (show current mode)"
+    echo "16) Auth check (/v1/models)"
+    echo "17) Start server"
+    echo "18) Stop server"
+    echo "19) Restart server"
+    echo "20) Server status"
+    echo "21) Set run mode (direct/systemd)"
+    echo "22) Install systemd service"
+    echo "23) Upgrade CLIProxyAPI"
+    echo "24) Backup CLIProxyAPI binary"
+    echo "25) Status"
+    echo "26) Clear model override"
+    echo "27) Exit"
     read -r "choice?Select: "
 
     case "$choice" in
@@ -134,17 +136,19 @@ cliproxy_menu_text() {
       12) llmproxy_setup ;;
       13) llmproxy_fix ;;
       14) llmproxy_doctor ;;
-      15) cliproxy_start ;;
-      16) cliproxy_stop ;;
-      17) cliproxy_restart ;;
-      18) cliproxy_server_status ;;
-      19) _cliproxy_action_run_mode ;;
-      20) _cliproxy_action_systemd_install ;;
-      21) cliproxy_upgrade ;;
-      22) cliproxy_backup ;;
-      23) cliproxy_status ;;
-      24) cliproxy_clear ;;
-      25) break ;;
+      15) llmproxy_env ;;
+      16) llmproxy_whoami ;;
+      17) cliproxy_start ;;
+      18) cliproxy_stop ;;
+      19) cliproxy_restart ;;
+      20) cliproxy_server_status ;;
+      21) _cliproxy_action_run_mode ;;
+      22) _cliproxy_action_systemd_install ;;
+      23) cliproxy_upgrade ;;
+      24) cliproxy_backup ;;
+      25) cliproxy_status ;;
+      26) cliproxy_clear ;;
+      27) break ;;
       *) echo "Invalid choice." ;;
     esac
   done
@@ -163,7 +167,7 @@ cliproxy_menu() {
   while true; do
     local choice
     choice=$(printf "%s\n" \
-      "Use preset - switch claude/codex/gemini" \
+      "Use preset - switch claude/codex/gemini (auto-sync)" \
       "Pick model (all) - from /v1/models" \
       "Pick model (codex) - from /v1/models" \
       "Pick model (claude) - from /v1/models" \
@@ -177,6 +181,8 @@ cliproxy_menu() {
       "Setup wizard - env + deps + rc" \
       "Auto-fix deps - install missing tools" \
       "Doctor - check deps/server" \
+      "Env - show current mode" \
+      "Auth check - /v1/models" \
       "Start server - run CLIProxyAPI" \
       "Stop server - stop CLIProxyAPI" \
       "Restart server - restart CLIProxyAPI" \
@@ -204,6 +210,8 @@ cliproxy_menu() {
       "Setup wizard - "* ) llmproxy_setup ;;
       "Auto-fix deps - "* ) llmproxy_fix ;;
       "Doctor - "* ) llmproxy_doctor ;;
+      "Env - "* ) llmproxy_env ;;
+      "Auth check - "* ) llmproxy_whoami ;;
       "Start server - "* ) cliproxy_start ;;
       "Stop server - "* ) cliproxy_stop ;;
       "Restart server - "* ) cliproxy_restart ;;

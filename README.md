@@ -68,7 +68,7 @@ brew install curl python fzf
 
 ```zsh
 llmproxy                     # open menu
-llmproxy use codex            # switch preset (claude/codex/gemini/antigravity)
+llmproxy use codex            # switch preset (auto-sync to /v1/models)
 llmproxy use <model>          # use a specific model id
 llmproxy pick-model           # pick from /v1/models
 llmproxy status               # show current status
@@ -97,6 +97,12 @@ Persist default mode in `.llmproxy.env`:
 export LLMPROXY_MODE="proxy"  # or "direct"
 ```
 
+Disable auto-sync if you want to pin models manually:
+
+```zsh
+export LLMPROXY_AUTO_SYNC="0"
+```
+
 ---
 
 ## One‑time commands
@@ -106,6 +112,7 @@ llmproxy setup     # wizard: env + deps + auto‑source
 llmproxy install   # add auto‑source to shell rc
 llmproxy fix       # auto‑install missing deps
 llmproxy doctor    # check deps, server reachability, OS, mode
+llmproxy sync-models claude   # sync preset models from /v1/models
 ```
 
 Tip: after git clone, you can run `./llmproxy setup` directly from this folder

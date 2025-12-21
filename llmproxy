@@ -40,5 +40,11 @@ if [[ "${1:-}" == "init" ]]; then
   exit 0
 fi
 
-source "$HERE/.llmproxy.zsh"
-llmproxy "$@"
+if ! command -v zsh >/dev/null 2>&1; then
+  echo "zsh not found. Please install zsh and try again." >&2
+  exit 1
+fi
+
+args=("$@")
+printf -v quoted '%q ' "${args[@]}"
+exec zsh -lc "source \"$HERE/.llmproxy.zsh\"; llmproxy ${quoted}"
