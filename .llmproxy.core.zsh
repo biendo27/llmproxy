@@ -819,6 +819,8 @@ cliproxy_pick_model() {
   case "$mode" in
     codex)
       export CLIPROXY_CODEX_OPUS="$picked"
+      export CLIPROXY_CODEX_SONNET="$picked"
+      export CLIPROXY_CODEX_HAIKU="$picked"
       export CLIPROXY_PRESET="codex"
       export CLIPROXY_MODEL=""
       _cliproxy_apply
@@ -826,6 +828,8 @@ cliproxy_pick_model() {
       ;;
     claude)
       export CLIPROXY_CLAUDE_OPUS="$picked"
+      export CLIPROXY_CLAUDE_SONNET="$picked"
+      export CLIPROXY_CLAUDE_HAIKU="$picked"
       export CLIPROXY_PRESET="claude"
       export CLIPROXY_MODEL=""
       _cliproxy_apply
@@ -833,6 +837,8 @@ cliproxy_pick_model() {
       ;;
     gemini)
       export CLIPROXY_GEMINI_OPUS="$picked"
+      export CLIPROXY_GEMINI_SONNET="$picked"
+      export CLIPROXY_GEMINI_HAIKU="$picked"
       export CLIPROXY_PRESET="gemini"
       export CLIPROXY_MODEL=""
       _cliproxy_apply
