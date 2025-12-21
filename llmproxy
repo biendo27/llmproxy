@@ -47,4 +47,5 @@ fi
 
 args=("$@")
 printf -v quoted '%q ' "${args[@]}"
-exec zsh -lc "source \"$HERE/.llmproxy.zsh\"; llmproxy ${quoted}"
+# Force-disable xtrace inside the non-interactive zsh run
+exec zsh -lc "export LLMPROXY_FORCE_NO_XTRACE=1; set +x; unsetopt xtrace; source \"$HERE/.llmproxy.zsh\"; set +x; unsetopt xtrace; llmproxy ${quoted}"

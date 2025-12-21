@@ -526,6 +526,16 @@ cliproxy_backup() {
 }
 
 cliproxy_pick_model() {
+  emulate -L zsh
+  setopt local_options
+  local _ui_silenced=0
+  if typeset -f _cliproxy_ui_silence_xtrace_begin >/dev/null 2>&1; then
+    _cliproxy_ui_silence_xtrace_begin
+    _ui_silenced=1
+  fi
+  {
+  unsetopt xtrace
+  set +x 2>/dev/null || true
   local filter="${1:-}"
   local mode="${2:-}"   # optional: codex|claude|gemini to set preset tiers
   local picker="${3:-}" # optional: gum|fzf|auto
@@ -550,9 +560,11 @@ cliproxy_pick_model() {
     local list="$1"
     local header="$2"
     local picked=""
+    unsetopt xtrace
+    set +x 2>/dev/null || true
     local full_header="$header"
     if typeset -f _cliproxy_ui_header >/dev/null 2>&1; then
-      full_header="$(_cliproxy_ui_header)\n$header"
+      full_header="$(_cliproxy_ui_header)"$'\n'"$header"
     fi
     if [[ "$picker" == "gum" ]] && command -v gum >/dev/null 2>&1; then
       local term=""
@@ -571,9 +583,9 @@ cliproxy_pick_model() {
       fi
     elif command -v fzf >/dev/null 2>&1; then
       if typeset -f _cliproxy_fzf_menu >/dev/null 2>&1; then
-        picked="$(printf "%s\n" "$list" | _cliproxy_fzf_menu "Model> " "$full_header" "60%")" || return 1
+        picked="$(printf "%s\n" "$list" | _cliproxy_fzf_menu "Model> " "$full_header" "50%")" || return 1
       else
-        picked="$(printf "%s\n" "$list" | fzf --prompt="Model> " --height=60% --border --no-multi --info=inline --header-first \
+        picked="$(printf "%s\n" "$list" | fzf --prompt="Model> " --height=50% --border --no-multi --info=hidden --header-first \
           --header="$full_header" \
           --color=fg:252,bg:235,hl:208,fg+:255,bg+:236,hl+:208,info:244,prompt:208,pointer:208,marker:208,spinner:208,header:244,border:238)" || return 1
       fi
@@ -653,6 +665,9 @@ cliproxy_pick_model() {
       cliproxy_use "$picked"
       ;;
   esac
+  } always {
+    (( _ui_silenced )) && _cliproxy_ui_silence_xtrace_end
+  }
 }
 
 # Apply environment variables used by Claude Code
@@ -781,6 +796,7 @@ Usage: llmproxy <command> [args]
 
 Commands:
   ui|menu                 Open interactive menu
+  ui-config               Configure UI (theme/layout/preview/keys)
   use <preset|model>       Switch preset or set model id
   pick-model [filter]      Pick model from /v1/models
   profile <local|local2>   Switch profile
@@ -810,12 +826,17 @@ EOF
 }
 
 cliproxy() {
+  local _saved_xtrace="${options[xtrace]:-off}"
+  unsetopt xtrace
+  set +x 2>/dev/null || true
   local cmd="${1:-}"
   if (( $# > 0 )); then
     shift
   fi
+  local rc=0
   case "$cmd" in
     ""|ui|menu) cliproxy_ui ;;
+    ui-config|ui-settings) llmproxy_ui_config ;;
     use) cliproxy_use "$@" ;;
     pick-model) cliproxy_pick_model "$@" ;;
     profile) cliproxy_profile "$@" ;;
@@ -844,9 +865,11 @@ cliproxy() {
     *)
       echo "Unknown command: $cmd"
       cliproxy_help
-      return 1
+      rc=1
       ;;
   esac
+  [[ "$_saved_xtrace" == "on" ]] && setopt xtrace
+  return $rc
 }
 
 llmproxy_help() {
