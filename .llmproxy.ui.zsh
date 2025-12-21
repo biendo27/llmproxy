@@ -415,10 +415,7 @@ cliproxy_menu() {
     items+=$'Exit\tClose menu\n'
 
     _cliproxy_ui_no_xtrace
-    local header
-    local count
-    count="$(printf "%s" "$items" | awk 'NF{c++} END{print c+0}')"
-    header="$(_cliproxy_ui_header)"$'\n'"Items: ${count}"
+    local header=""
 
     local fzf_args=()
     if _cliproxy_ui_quick_keys; then
