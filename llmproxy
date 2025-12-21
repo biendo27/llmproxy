@@ -2,10 +2,34 @@
 set -euo pipefail
 
 resolve_path() {
-  python3 - <<'PY' "$1"
+  local p="$1"
+  if command -v python3 >/dev/null 2>&1; then
+    python3 - <<'PY' "$p"
 import os, sys
 print(os.path.realpath(sys.argv[1]))
 PY
+    return
+  fi
+  if command -v readlink >/dev/null 2>&1; then
+    local target="$p"
+    local link base
+    while [ -L "$target" ]; do
+      link="$(readlink "$target")" || break
+      base="$(cd -- "$(dirname -- "$target")" && pwd)"
+      if [[ "$link" == /* ]]; then
+        target="$link"
+      else
+        target="$base/$link"
+      fi
+    done
+    if [[ "$target" != /* ]]; then
+      target="$(cd -- "$(dirname -- "$target")" && pwd)/$(basename "$target")"
+    fi
+    echo "$target"
+    return
+  else
+    echo "$p"
+  fi
 }
 
 SCRIPT_PATH="$(resolve_path "$0")"

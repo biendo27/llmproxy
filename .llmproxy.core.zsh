@@ -1,10 +1,5 @@
 # Core logic for CLIProxyAPI env + model mapping
 
-# Stop if required values are missing
-if [[ -z "${CLIPROXY_URL:-}" || -z "${CLIPROXY_KEY:-}" ]]; then
-  return 0 2>/dev/null || exit 0
-fi
-
 _cliproxy_log() {
   if [[ "${CLIPROXY_LOG_SEP:-1}" != "0" ]]; then
     printf "\n[llmproxy] ------------------------------\n"
@@ -95,6 +90,10 @@ _cliproxy_status_line() {
 }
 
 _cliproxy_list_models() {
+  if [[ -z "${CLIPROXY_URL:-}" || -z "${CLIPROXY_KEY:-}" ]]; then
+    _cliproxy_log "CLIPROXY_URL/CLIPROXY_KEY not set"
+    return 1
+  fi
   local json
   json="$(curl -fsS -H "Authorization: Bearer ${CLIPROXY_KEY}" \
     "${CLIPROXY_URL}/v1/models" 2>/dev/null)" || return 1
@@ -159,6 +158,13 @@ _llmproxy_has_cmd() {
   command -v "$1" >/dev/null 2>&1
 }
 
+_llmproxy_path_has_local_bin() {
+  case ":$PATH:" in
+    *":$HOME/.local/bin:"*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 _llmproxy_default_rc() {
   if [[ -n "${LLMPROXY_RC:-}" ]]; then
     echo "$LLMPROXY_RC"
@@ -180,7 +186,8 @@ llmproxy_install() {
   rc="${1:-$(_llmproxy_default_rc)}"
   start="# >>> llmproxy >>>"
   end="# <<< llmproxy <<<"
-  line='if command -v llmproxy >/dev/null 2>&1; then eval "$(llmproxy init)"; fi'
+  line='export PATH="$HOME/.local/bin:$PATH"'
+  local line2='if command -v llmproxy >/dev/null 2>&1; then eval "$(llmproxy init)"; fi'
 
   bin_dir="$HOME/.local/bin"
   src="${CLIPROXY_HOME:-$HOME/cliproxyapi/llmproxy-config}/llmproxy"
@@ -190,9 +197,9 @@ llmproxy_install() {
     ln -sf "$src" "$link"
   fi
 
-  python3 - "$rc" "$start" "$end" "$line" <<'PY'
+  python3 - "$rc" "$start" "$end" "$line" "$line2" <<'PY'
 import sys
-rc, start, end, line = sys.argv[1:]
+rc, start, end, line, line2 = sys.argv[1:]
 try:
     data = open(rc, "r", encoding="utf-8").read().splitlines(keepends=True)
 except FileNotFoundError:
@@ -207,6 +214,7 @@ for l in data:
         found = True
         out.append(start + "\n")
         out.append(line + "\n")
+        out.append(line2 + "\n")
         out.append(end + "\n")
         continue
     if in_block:
@@ -222,6 +230,7 @@ if not found:
         out.append("\n")
     out.append(start + "\n")
     out.append(line + "\n")
+    out.append(line2 + "\n")
     out.append(end + "\n")
 
 open(rc, "w", encoding="utf-8").write("".join(out))
@@ -275,6 +284,12 @@ llmproxy_doctor() {
   printf "  arch     : %s\n" "${arch:-unknown}"
   printf "  mode     : %s\n" "${LLMPROXY_MODE:-proxy}"
   printf "  run-mode : %s\n" "${CLIPROXY_RUN_MODE:-direct}"
+  if _llmproxy_path_has_local_bin; then
+    printf "  path     : ok (~/.local/bin)\n"
+  else
+    printf "  path     : missing ~/.local/bin\n"
+    missing=1
+  fi
 
   for cmd in zsh curl python3; do
     if _llmproxy_has_cmd "$cmd"; then
@@ -323,6 +338,10 @@ llmproxy_setup() {
   example="$home/.llmproxy.env.example"
   llmproxy_doctor
   local ans
+  if ! _llmproxy_path_has_local_bin; then
+    export PATH="$HOME/.local/bin:$PATH"
+    _cliproxy_log "added ~/.local/bin to PATH for this session"
+  fi
   read -r "ans?Auto-fix missing deps? (y/N): "
   if [[ "$ans" == "y" || "$ans" == "Y" ]]; then
     llmproxy_fix
@@ -716,6 +735,11 @@ _cliproxy_apply() {
   if [[ "${LLMPROXY_MODE:-proxy}" == "direct" ]]; then
     _llmproxy_restore_env
     return
+  fi
+
+  if [[ -z "${CLIPROXY_URL:-}" || -z "${CLIPROXY_KEY:-}" ]]; then
+    _cliproxy_log "CLIPROXY_URL/CLIPROXY_KEY not set (proxy disabled)"
+    return 1
   fi
 
   export ANTHROPIC_BASE_URL="$CLIPROXY_URL"
