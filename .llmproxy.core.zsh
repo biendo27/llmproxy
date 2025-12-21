@@ -73,6 +73,14 @@ PY
   _cliproxy_log "installed auto-source in: ${rc}"
 }
 
+llmproxy_init() {
+  local home src
+  home="${CLIPROXY_HOME:-$LLMPROXY_HOME_DEFAULT}"
+  src="$home/.llmproxy.zsh"
+  [[ -f "$src" ]] || return 1
+  echo "source \"$src\""
+}
+
 llmproxy_fix() {
   local os missing=()
   os="$(uname -s | tr '[:upper:]' '[:lower:]')"
@@ -228,7 +236,8 @@ llmproxy_setup() {
   local proxy_mode preset rc_path
   read -r "base_url?Base URL [${CLIPROXY_URL_LOCAL:-http://127.0.0.1:8317}]: "
   base_url="${base_url:-${CLIPROXY_URL_LOCAL:-http://127.0.0.1:8317}}"
-  read -r "key?API key (CLIPROXY_KEY_LOCAL) [leave empty to keep]: "
+  read -r -s "key?API key (CLIPROXY_KEY_LOCAL) [leave empty to keep]: "
+  echo ""
   read -r "run_mode?Run mode (direct/systemd) [${CLIPROXY_RUN_MODE:-direct}]: "
   run_mode="${run_mode:-${CLIPROXY_RUN_MODE:-direct}}"
   read -r "proxy_mode?Proxy mode (proxy/direct) [${LLMPROXY_MODE:-proxy}]: "
@@ -237,22 +246,36 @@ llmproxy_setup() {
   preset="${preset:-${CLIPROXY_PRESET:-claude}}"
 
   python3 - "$env" "$base_url" "$key" "$run_mode" "$proxy_mode" "$preset" <<'PY'
-import sys, re
+import sys, re, shlex
 path, base_url, key, run_mode, proxy_mode, preset = sys.argv[1:7]
-data = open(path, "r", encoding="utf-8").read().splitlines(keepends=True)
+
+def clean(v: str) -> str:
+    return v.replace("\n", "").replace("\r", "")
+
+base_url = clean(base_url)
+key = clean(key)
+run_mode = clean(run_mode)
+proxy_mode = clean(proxy_mode)
+preset = clean(preset)
+
+raw = open(path, "r", encoding="utf-8").read()
+# Repair common corruption where literal "\n" ends up inside export lines.
+if "\\nexport " in raw or "\\rexport " in raw:
+    raw = raw.replace("\\r\\n", "\n").replace("\\n", "\n").replace("\\r", "\n")
+data = raw.splitlines(keepends=True)
 def set_kv(lines, k, v):
     out = []
     found = False
     for l in lines:
         if l.startswith(f'export {k}='):
-            out.append(f'export {k}="{v}"\\n')
+            out.append(f'export {k}={shlex.quote(v)}\\n')
             found = True
         else:
             out.append(l)
     if not found:
         if out and not out[-1].endswith("\\n"):
             out[-1] += "\\n"
-        out.append(f'export {k}="{v}"\\n')
+        out.append(f'export {k}={shlex.quote(v)}\\n')
     return out
 
 data = set_kv(data, "CLIPROXY_URL_LOCAL", base_url)
@@ -332,8 +355,8 @@ After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=${CLIPROXY_SERVER_DIR:-$HOME}
-ExecStart=${bin}${config:+ --config ${config}}
+WorkingDirectory="${CLIPROXY_SERVER_DIR:-$HOME}"
+ExecStart="${bin}"${config:+ --config "${config}"}
 Restart=always
 RestartSec=5
 Environment=HOME=${HOME}
@@ -368,10 +391,16 @@ cliproxy_start() {
     return 0
   fi
 
-  local bin config
+  local bin config log_dir run_log pid_file
   bin="$(_cliproxy_server_bin)" || return 1
   config="$(_cliproxy_server_config)"
-  mkdir -p "${CLIPROXY_LOG_DIR:-$HOME}"
+  log_dir="${CLIPROXY_LOG_DIR:-$HOME}"
+  run_log="${CLIPROXY_RUN_LOG:-$log_dir/cliproxyapi.out.log}"
+  pid_file="${CLIPROXY_PID_FILE:-$log_dir/cliproxyapi.pid}"
+  [[ -z "${CLIPROXY_LOG_DIR:-}" ]] && export CLIPROXY_LOG_DIR="$log_dir"
+  [[ -z "${CLIPROXY_RUN_LOG:-}" ]] && export CLIPROXY_RUN_LOG="$run_log"
+  [[ -z "${CLIPROXY_PID_FILE:-}" ]] && export CLIPROXY_PID_FILE="$pid_file"
+  mkdir -p "$log_dir"
   if _cliproxy_pid_alive; then
     _cliproxy_log "already running (pid $(cat "$CLIPROXY_PID_FILE"))"
     return 0
@@ -450,25 +479,37 @@ cliproxy_upgrade() {
     return 1
   }
 
-  local out
+  local out checksum_url asset_name
   out="$(python3 - "$json" "$os" "$arch" <<'PY'
-import json, sys
+import json, sys, re
 data = json.loads(sys.argv[1])
 os, arch = sys.argv[2], sys.argv[3]
 tag = data.get("tag_name","")
 name = f"{os}_{arch}.tar.gz"
 url = ""
+asset_name = ""
+checksum_url = ""
+checksum_candidates = []
 for a in data.get("assets", []):
     n = a.get("name","")
     if n.endswith(name):
         url = a.get("browser_download_url","")
-        break
+        asset_name = n
+    if re.search(r"(sha256|checksums?)", n, re.I):
+        checksum_candidates.append((n, a.get("browser_download_url","")))
+if checksum_candidates:
+    checksum_candidates.sort(key=lambda x: (0 if re.search("sha256", x[0], re.I) else 1, x[0]))
+    checksum_url = checksum_candidates[0][1]
 print(url)
 print(tag)
+print(checksum_url)
+print(asset_name)
 PY
 )" || return 1
   url="$(printf "%s" "$out" | sed -n '1p')"
   tag="$(printf "%s" "$out" | sed -n '2p')"
+  checksum_url="$(printf "%s" "$out" | sed -n '3p')"
+  asset_name="$(printf "%s" "$out" | sed -n '4p')"
 
   if [[ -z "$url" ]]; then
     _cliproxy_log "no release asset found for ${os}_${arch}"
@@ -476,8 +517,48 @@ PY
   fi
 
   tmp="$(mktemp -d)" || return 1
-  archive="$tmp/cliproxyapi.tar.gz"
+  asset_name="${asset_name:-$(basename "$url")}"
+  archive="$tmp/$asset_name"
   curl -L "$url" -o "$archive" || { _cliproxy_log "download failed"; return 1; }
+  if [[ -n "$checksum_url" ]]; then
+    local checksum_file expected actual
+    checksum_file="$tmp/cliproxyapi.checksums"
+    curl -L "$checksum_url" -o "$checksum_file" || { _cliproxy_log "checksum download failed"; return 1; }
+    expected="$(python3 - "$checksum_file" "$asset_name" <<'PY'
+import re, sys
+path, name = sys.argv[1], sys.argv[2]
+content = open(path, "r", encoding="utf-8", errors="ignore").read()
+for line in content.splitlines():
+    if name in line:
+        parts = line.strip().split()
+        if parts:
+            print(parts[0])
+            raise SystemExit(0)
+tokens = content.strip().split()
+if len(tokens) == 1 and re.fullmatch(r"[0-9a-fA-F]{64}", tokens[0]):
+    print(tokens[0])
+PY
+)"
+    if [[ -z "$expected" ]]; then
+      _cliproxy_log "checksum entry not found for ${asset_name}; aborting"
+      return 1
+    fi
+    actual="$(python3 - "$archive" <<'PY'
+import hashlib, sys
+h = hashlib.sha256()
+with open(sys.argv[1], "rb") as f:
+    for chunk in iter(lambda: f.read(8192), b""):
+        h.update(chunk)
+print(h.hexdigest())
+PY
+)"
+    if [[ "$expected" != "$actual" ]]; then
+      _cliproxy_log "checksum mismatch for ${asset_name}"
+      return 1
+    fi
+  else
+    _cliproxy_log "checksum asset not found; proceeding without verification"
+  fi
   tar -xzf "$archive" -C "$tmp" || { _cliproxy_log "extract failed"; return 1; }
   newbin="$(find "$tmp" -type f -name 'cli-proxy-api' | head -n 1)"
   if [[ -z "$newbin" ]]; then
@@ -796,6 +877,7 @@ Usage: llmproxy <command> [args]
 
 Commands:
   ui|menu                 Open interactive menu
+  init                    Print shell init line for eval
   ui-config               Configure UI (theme/layout/preview/keys)
   use <preset|model>       Switch preset or set model id
   pick-model [filter]      Pick model from /v1/models
@@ -836,6 +918,7 @@ cliproxy() {
   local rc=0
   case "$cmd" in
     ""|ui|menu) cliproxy_ui ;;
+    init) llmproxy_init ;;
     ui-config|ui-settings) llmproxy_ui_config ;;
     use) cliproxy_use "$@" ;;
     pick-model) cliproxy_pick_model "$@" ;;

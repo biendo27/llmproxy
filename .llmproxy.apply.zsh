@@ -9,6 +9,7 @@ _cliproxy_apply() {
 
   if [[ -z "${CLIPROXY_URL:-}" || -z "${CLIPROXY_KEY:-}" ]]; then
     _cliproxy_log "CLIPROXY_URL/CLIPROXY_KEY not set (proxy disabled)"
+    _llmproxy_restore_env
     return 1
   fi
 
