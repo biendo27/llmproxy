@@ -2,13 +2,46 @@
 
 _cliproxy_has_fzf() { command -v fzf >/dev/null 2>&1; }
 
+_cliproxy_fzf_menu() {
+  setopt local_options
+  unsetopt xtrace
+  local prompt="$1"
+  local header="$2"
+  local height="${3:-60%}"
+  shift 3
+  fzf --prompt="$prompt" --height="$height" --border --no-multi --info=inline --header-first \
+      --header="$header" \
+      --color=fg:252,bg:235,hl:208,fg+:255,bg+:236,hl+:208,info:244,prompt:208,pointer:208,marker:208,spinner:208,header:244,border:238 \
+      "$@"
+}
+
+_cliproxy_ui_header() {
+  local mode="${LLMPROXY_MODE:-proxy}"
+  local profile="${CLIPROXY_PROFILE:-}"
+  local run_mode="${CLIPROXY_RUN_MODE:-direct}"
+  local model="$(_cliproxy_current_model)"
+  local base="${CLIPROXY_URL:-}"
+  local warn=""
+  if _llmproxy_mixed_providers "${ANTHROPIC_DEFAULT_OPUS_MODEL:-}" "${ANTHROPIC_DEFAULT_SONNET_MODEL:-}" "${ANTHROPIC_DEFAULT_HAIKU_MODEL:-}"; then
+    warn="Warning: mixed providers across tiers"
+  fi
+
+  printf "LLMProxy  |  profile=%s  mode=%s  run=%s\n" "${profile:-?}" "$mode" "$run_mode"
+  printf "model: %s\n" "${model:-<default>}"
+  printf "base : %s\n" "${base:-<unset>}"
+  [[ -n "$warn" ]] && printf "%s\n" "$warn"
+  printf "Type to filter • Enter to run • Esc to exit"
+}
+
 _cliproxy_choose_level() {
+  setopt local_options
+  unsetopt xtrace
   local prompt="$1"
   local current="$2"
   local level=""
   if _cliproxy_has_fzf; then
     level="$(printf "%s\n" minimal low medium high xhigh auto none | \
-      fzf --prompt="${prompt}> " --height=40% --border --no-multi)" || return 1
+      _cliproxy_fzf_menu "${prompt}> " "$(_cliproxy_ui_header)" "40%")" || return 1
     echo "$level"
   else
     read -r "level?${prompt} [${current}]: "
@@ -17,10 +50,12 @@ _cliproxy_choose_level() {
 }
 
 _cliproxy_action_use_preset() {
+  setopt local_options
+  unsetopt xtrace
   local preset=""
   if _cliproxy_has_fzf; then
     preset="$(printf "%s\n" claude codex gemini antigravity | \
-      fzf --prompt="Preset> " --height=40% --border --no-multi)" || return
+      _cliproxy_fzf_menu "Preset> " "$(_cliproxy_ui_header)" "40%")" || return
   else
     echo "Preset: 1) claude  2) codex  3) gemini  4) antigravity  5) cancel"
     read -r "p?Select: "
@@ -36,11 +71,15 @@ _cliproxy_action_use_preset() {
 }
 
 _cliproxy_action_use_model_id() {
+  setopt local_options
+  unsetopt xtrace
   read -r "m?Enter model ID: "
   [[ -n "$m" ]] && cliproxy_use "$m"
 }
 
 _cliproxy_action_codex_thinking() {
+  setopt local_options
+  unsetopt xtrace
   local t1 t2 t3
   t1="$(_cliproxy_choose_level "Opus" "${CLIPROXY_CODEX_THINKING_OPUS:-}")" || return
   t2="$(_cliproxy_choose_level "Sonnet" "${CLIPROXY_CODEX_THINKING_SONNET:-}")" || return
@@ -53,9 +92,11 @@ _cliproxy_action_codex_thinking() {
 }
 
 _cliproxy_action_switch_profile() {
+  setopt local_options
+  unsetopt xtrace
   local prof=""
   if _cliproxy_has_fzf; then
-    prof="$(printf "%s\n" local local2 | fzf --prompt="Profile> " --height=40% --border --no-multi)" || return
+    prof="$(printf "%s\n" local local2 | _cliproxy_fzf_menu "Profile> " "$(_cliproxy_ui_header)" "40%")" || return
   else
     read -r "pr?Profile (local/local2): "
     prof="$pr"
@@ -64,9 +105,11 @@ _cliproxy_action_switch_profile() {
 }
 
 _cliproxy_action_run_mode() {
+  setopt local_options
+  unsetopt xtrace
   local mode=""
   if _cliproxy_has_fzf; then
-    mode="$(printf "%s\n" direct systemd | fzf --prompt="Run mode> " --height=40% --border --no-multi)" || return
+    mode="$(printf "%s\n" direct systemd | _cliproxy_fzf_menu "Run mode> " "$(_cliproxy_ui_header)" "40%")" || return
   else
     read -r "mode?Run mode (direct/systemd): "
   fi
@@ -74,10 +117,12 @@ _cliproxy_action_run_mode() {
 }
 
 _cliproxy_action_systemd_install() {
+  setopt local_options
+  unsetopt xtrace
   cliproxy_systemd_install
   if _cliproxy_has_fzf; then
     local choice
-    choice="$(printf "%s\n" "Enable + start now" "Skip" | fzf --prompt="Systemd> " --height=40% --border --no-multi)" || return
+    choice="$(printf "%s\n" "Enable + start now" "Skip" | _cliproxy_fzf_menu "Systemd> " "$(_cliproxy_ui_header)" "40%")" || return
     [[ "$choice" == "Enable + start now" ]] && cliproxy_systemd_enable
   else
     read -r "ans?Enable + start systemd now? (y/N): "
@@ -167,61 +212,68 @@ cliproxy_menu() {
   while true; do
     local choice
     choice=$(printf "%s\n" \
-      "Use preset - switch claude/codex/gemini (auto-sync)" \
-      "Pick model (all) - from /v1/models" \
-      "Pick model (codex) - from /v1/models" \
-      "Pick model (claude) - from /v1/models" \
-      "Pick model (gemini) - from /v1/models" \
-      "Use model ID - type manually" \
-      "Set Codex thinking levels - opus/sonnet/haiku" \
-      "Switch profile - local/local2" \
-      "Enable proxy - use CLIProxyAPI" \
-      "Disable proxy - use official Claude" \
-      "Toggle proxy - switch on/off" \
-      "Setup wizard - env + deps + rc" \
-      "Auto-fix deps - install missing tools" \
-      "Doctor - check deps/server" \
-      "Env - show current mode" \
-      "Auth check - /v1/models" \
-      "Start server - run CLIProxyAPI" \
-      "Stop server - stop CLIProxyAPI" \
-      "Restart server - restart CLIProxyAPI" \
-      "Server status - show running state" \
-      "Set run mode - direct/systemd" \
-      "Install systemd service - user unit" \
-      "Upgrade CLIProxyAPI - latest release" \
-      "Backup binary - timestamped copy" \
-      "Status - show current env/model" \
-      "Clear model override - reset" \
-      "Exit" | fzf --prompt="LLMProxy> " --height=40% --border --no-multi --header="$(_cliproxy_status_line)") || return
+      $'Actions\t' \
+      $'Use preset\tSwitch claude/codex/gemini (auto-sync)' \
+      $'Pick model (all)\tChoose from /v1/models' \
+      $'Pick model (codex)\tOverride codex tiers (opus/sonnet/haiku)' \
+      $'Pick model (claude)\tOverride claude tiers (opus/sonnet/haiku)' \
+      $'Pick model (gemini)\tOverride gemini tiers (opus/sonnet/haiku)' \
+      $'Use model ID\tType exact model id' \
+      $'Set Codex thinking levels\topus/sonnet/haiku' \
+      $'Switch profile\tlocal/local2' \
+      $'Enable proxy\tUse CLIProxyAPI' \
+      $'Disable proxy\tUse official Claude' \
+      $'Toggle proxy\tSwitch on/off' \
+      $'Diagnostics\t' \
+      $'Status\tShow current env/model' \
+      $'Env\tShow current mode' \
+      $'Auth check\t/v1/models' \
+      $'Doctor\tCheck deps/server' \
+      $'Auto-fix deps\tInstall missing tools' \
+      $'Setup wizard\tEnv + deps + rc' \
+      $'Server\t' \
+      $'Start server\tRun CLIProxyAPI' \
+      $'Stop server\tStop CLIProxyAPI' \
+      $'Restart server\tRestart CLIProxyAPI' \
+      $'Server status\tShow running state' \
+      $'Set run mode\tDirect/systemd' \
+      $'Install systemd service\tUser unit' \
+      $'Upgrade CLIProxyAPI\tLatest release' \
+      $'Backup binary\tTimestamped copy' \
+      $'Clear model override\tReset direct model' \
+      $'Exit\tClose menu' | \
+      _cliproxy_fzf_menu "LLMProxy> " "$(_cliproxy_ui_header)" "60%" \
+        --delimiter=$'\t' --with-nth=1,2 --nth=1,2) || return
 
+    choice="${choice%%$'\t'*}"
     case "$choice" in
-      "Use preset - "* ) _cliproxy_action_use_preset ;;
-      "Pick model (all) - "* ) cliproxy_pick_model ;;
-      "Pick model (codex) - "* ) cliproxy_pick_model "codex" "codex" ;;
-      "Pick model (claude) - "* ) cliproxy_pick_model "^claude-|^gemini-claude-" "claude" ;;
-      "Pick model (gemini) - "* ) cliproxy_pick_model "^gemini-" "gemini" ;;
-      "Use model ID - "* ) _cliproxy_action_use_model_id ;;
-      "Set Codex thinking levels - "* ) _cliproxy_action_codex_thinking ;;
-      "Switch profile - "* ) _cliproxy_action_switch_profile ;;
-      "Enable proxy - "* ) llmproxy_on ;;
-      "Disable proxy - "* ) llmproxy_off ;;
-      "Toggle proxy - "* ) llmproxy_toggle ;;
-      "Setup wizard - "* ) llmproxy_setup ;;
-      "Auto-fix deps - "* ) llmproxy_fix ;;
-      "Doctor - "* ) llmproxy_doctor ;;
-      "Env - "* ) llmproxy_env ;;
-      "Auth check - "* ) llmproxy_whoami ;;
-      "Start server - "* ) cliproxy_start ;;
-      "Stop server - "* ) cliproxy_stop ;;
-      "Restart server - "* ) cliproxy_restart ;;
-      "Server status - "* ) cliproxy_server_status ;;
-      "Set run mode - "* ) _cliproxy_action_run_mode ;;
-      "Install systemd service - "* ) _cliproxy_action_systemd_install ;;
-      "Upgrade CLIProxyAPI - "* ) cliproxy_upgrade ;;
-      "Backup binary - "* ) cliproxy_backup ;;
-      "Status - "* ) cliproxy_status ;;
-      "Clear model override - "* ) cliproxy_clear ;;
+      "Actions"|"Diagnostics"|"Server"|"") continue ;;
+      "Use preset") _cliproxy_action_use_preset ;;
+      "Pick model (all)") cliproxy_pick_model ;;
+      "Pick model (codex)") cliproxy_pick_model "codex" "codex" ;;
+      "Pick model (claude)") cliproxy_pick_model "^claude-|^gemini-claude-" "claude" ;;
+      "Pick model (gemini)") cliproxy_pick_model "^gemini-" "gemini" ;;
+      "Use model ID") _cliproxy_action_use_model_id ;;
+      "Set Codex thinking levels") _cliproxy_action_codex_thinking ;;
+      "Switch profile") _cliproxy_action_switch_profile ;;
+      "Enable proxy") llmproxy_on ;;
+      "Disable proxy") llmproxy_off ;;
+      "Toggle proxy") llmproxy_toggle ;;
+      "Setup wizard") llmproxy_setup ;;
+      "Auto-fix deps") llmproxy_fix ;;
+      "Doctor") llmproxy_doctor ;;
+      "Env") llmproxy_env ;;
+      "Auth check") llmproxy_whoami ;;
+      "Start server") cliproxy_start ;;
+      "Stop server") cliproxy_stop ;;
+      "Restart server") cliproxy_restart ;;
+      "Server status") cliproxy_server_status ;;
+      "Set run mode") _cliproxy_action_run_mode ;;
+      "Install systemd service") _cliproxy_action_systemd_install ;;
+      "Upgrade CLIProxyAPI") cliproxy_upgrade ;;
+      "Backup binary") cliproxy_backup ;;
+      "Status") cliproxy_status ;;
+      "Clear model override") cliproxy_clear ;;
       "Exit") break ;;
     esac
   done

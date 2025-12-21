@@ -269,26 +269,30 @@ _llmproxy_provider_of_model() {
   esac
 }
 
-_llmproxy_warn_mixed_providers() {
+_llmproxy_mixed_providers() {
   local opus="$1"
   local sonnet="$2"
   local haiku="$3"
-  local p1 p2 p3 mixed=0 provider=""
-  p1="$(_llmproxy_provider_of_model "$opus")"
-  p2="$(_llmproxy_provider_of_model "$sonnet")"
-  p3="$(_llmproxy_provider_of_model "$haiku")"
+  local p provider=""
 
-  for p in "$p1" "$p2" "$p3"; do
+  for p in "$(_llmproxy_provider_of_model "$opus")" \
+           "$(_llmproxy_provider_of_model "$sonnet")" \
+           "$(_llmproxy_provider_of_model "$haiku")"; do
     [[ -z "$p" ]] && continue
     if [[ -z "$provider" ]]; then
       provider="$p"
     elif [[ "$p" != "$provider" ]]; then
-      mixed=1
-      break
+      return 0
     fi
   done
+  return 1
+}
 
-  if (( mixed )); then
+_llmproxy_warn_mixed_providers() {
+  local opus="$1"
+  local sonnet="$2"
+  local haiku="$3"
+  if _llmproxy_mixed_providers "$opus" "$sonnet" "$haiku"; then
     _cliproxy_log "warning: mixed providers across tiers"
     printf "  opus  : %s\n  sonnet: %s\n  haiku : %s\n" "$opus" "$sonnet" "$haiku"
     _cliproxy_log "best practice: keep all tiers in the same provider/preset"

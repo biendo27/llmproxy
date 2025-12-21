@@ -550,10 +550,14 @@ cliproxy_pick_model() {
     local list="$1"
     local header="$2"
     local picked=""
+    local full_header="$header"
+    if typeset -f _cliproxy_ui_header >/dev/null 2>&1; then
+      full_header="$(_cliproxy_ui_header)\n$header"
+    fi
     if [[ "$picker" == "gum" ]] && command -v gum >/dev/null 2>&1; then
       local term=""
       if gum choose --help 2>&1 | grep -q -- '--filter'; then
-        picked="$(printf "%s\n" "$list" | gum choose --header "$header" --filter)" || return 1
+        picked="$(printf "%s\n" "$list" | gum choose --header "$full_header" --filter)" || return 1
       else
         term="$(gum input --prompt "Filter (optional): " --placeholder "type to narrow")" || return 1
         if [[ -n "$term" ]]; then
@@ -563,10 +567,16 @@ cliproxy_pick_model() {
           fi
         fi
         [[ -n "$list" ]] || list="$default_label"
-        picked="$(printf "%s\n" "$list" | gum choose --header "$header")" || return 1
+        picked="$(printf "%s\n" "$list" | gum choose --header "$full_header")" || return 1
       fi
     elif command -v fzf >/dev/null 2>&1; then
-      picked="$(printf "%s\n" "$list" | fzf --prompt="Model> " --height=60% --border --no-multi --header="$header")" || return 1
+      if typeset -f _cliproxy_fzf_menu >/dev/null 2>&1; then
+        picked="$(printf "%s\n" "$list" | _cliproxy_fzf_menu "Model> " "$full_header" "60%")" || return 1
+      else
+        picked="$(printf "%s\n" "$list" | fzf --prompt="Model> " --height=60% --border --no-multi --info=inline --header-first \
+          --header="$full_header" \
+          --color=fg:252,bg:235,hl:208,fg+:255,bg+:236,hl+:208,info:244,prompt:208,pointer:208,marker:208,spinner:208,header:244,border:238)" || return 1
+      fi
     else
       _cliproxy_log "fzf not found; printing list."
       printf "%s\n" "$list"
