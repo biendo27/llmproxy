@@ -40,6 +40,18 @@ llmproxy
 
 ---
 
+## First run notes (important)
+
+- `llmproxy` works right after clone, but **/v1/models requires CLIProxyAPI running**.
+- If you’re running the server locally, ensure `CLIPROXY_URL`/`CLIPROXY_KEY` in `.llmproxy.env`
+  match the server `api-keys` in `config.yaml`.
+- If you only want official Claude (no proxy), run:
+  ```zsh
+  llmproxy off
+  ```
+
+---
+
 ## Prerequisites
 
 Required:
