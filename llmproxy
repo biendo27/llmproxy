@@ -45,7 +45,9 @@ if ! command -v zsh >/dev/null 2>&1; then
   exit 1
 fi
 
-args=("$@")
-printf -v quoted '%q ' "${args[@]}"
+quoted=""
+if [[ $# -gt 0 ]]; then
+  printf -v quoted '%q ' "$@"
+fi
 # Force-disable xtrace inside the non-interactive zsh run
 exec zsh -lc "export LLMPROXY_FORCE_NO_XTRACE=1; set +x; unsetopt xtrace; source \"$HERE/.llmproxy.zsh\"; set +x; unsetopt xtrace; llmproxy ${quoted}"
