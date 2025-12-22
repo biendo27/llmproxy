@@ -199,8 +199,8 @@ llmproxy backup
 
 ## Troubleshooting
 
-- **`llmproxy` not found**: ensure `~/.local/bin` is in PATH. The installer
-  writes it automatically in your rc.
+- **`llmproxy` not found**: run `./llmproxy setup` again, or manually add
+  `source "/path/to/llmproxy/.llmproxy.zsh"` to your shell rc.
 - **Server not reachable**: run `llmproxy doctor` to check URL/key.
 - **Claude still shows API billing**: run `llmproxy off`, then restart Claude
   Code and login again.

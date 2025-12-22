@@ -1,6 +1,7 @@
 # Core logic for CLIProxyAPI env + model mapping
 
-LLMPROXY_HOME_DEFAULT="${CLIPROXY_HOME:-$HOME/cliproxyapi/llmproxy-config}"
+# CLIPROXY_HOME is set by .llmproxy.zsh bootstrap before sourcing this file
+LLMPROXY_HOME_DEFAULT="${CLIPROXY_HOME:-}"
 LLMPROXY_LIB="${LLMPROXY_HOME_DEFAULT}/.llmproxy.lib.zsh"
 LLMPROXY_APPLY="${LLMPROXY_HOME_DEFAULT}/.llmproxy.apply.zsh"
 if [[ -f "$LLMPROXY_LIB" ]]; then
@@ -15,24 +16,28 @@ else
 fi
 
 llmproxy_install() {
-  local rc line start end bin_dir src link
+  local rc start end src
   rc="${1:-$(_llmproxy_default_rc)}"
   start="# >>> llmproxy >>>"
   end="# <<< llmproxy <<<"
-  line='export PATH="$HOME/.local/bin:$PATH"'
-  local line2='if command -v llmproxy >/dev/null 2>&1; then eval "$(llmproxy init)"; fi'
+  src="${CLIPROXY_HOME}"
 
-  bin_dir="$HOME/.local/bin"
-  src="${CLIPROXY_HOME:-$HOME/cliproxyapi/llmproxy-config}/llmproxy"
-  link="$bin_dir/llmproxy"
-  mkdir -p "$bin_dir"
-  if [[ -f "$src" ]]; then
-    ln -sf "$src" "$link"
+  if [[ -z "$src" ]]; then
+    _cliproxy_log "CLIPROXY_HOME not set; run from repo or set CLIPROXY_HOME"
+    return 1
   fi
 
-  python3 - "$rc" "$start" "$end" "$line" "$line2" <<'PY'
+  # Replace $HOME prefix for portability (works on Linux /home/user and macOS /Users/user)
+  local portable_src="$src"
+  if [[ "$src" == "$HOME"* ]]; then
+    portable_src="\$HOME${src#$HOME}"
+  fi
+  local export_line="export CLIPROXY_HOME=\"${portable_src}\""
+  local source_line='[[ -f "$CLIPROXY_HOME/.llmproxy.zsh" ]] && source "$CLIPROXY_HOME/.llmproxy.zsh"'
+
+  python3 - "$rc" "$start" "$end" "$export_line" "$source_line" <<'PY'
 import sys
-rc, start, end, line, line2 = sys.argv[1:]
+rc, start, end, export_line, source_line = sys.argv[1:]
 try:
     data = open(rc, "r", encoding="utf-8").read().splitlines(keepends=True)
 except FileNotFoundError:
@@ -46,8 +51,8 @@ for l in data:
         in_block = True
         found = True
         out.append(start + "\n")
-        out.append(line + "\n")
-        out.append(line2 + "\n")
+        out.append(export_line + "\n")
+        out.append(source_line + "\n")
         out.append(end + "\n")
         continue
     if in_block:
@@ -62,8 +67,8 @@ if not found:
     if out and out[-1].strip():
         out.append("\n")
     out.append(start + "\n")
-    out.append(line + "\n")
-    out.append(line2 + "\n")
+    out.append(export_line + "\n")
+    out.append(source_line + "\n")
     out.append(end + "\n")
 
 open(rc, "w", encoding="utf-8").write("".join(out))
@@ -128,12 +133,7 @@ llmproxy_doctor() {
   _llmproxy_kv "arch" "${arch:-unknown}" "$w"
   _llmproxy_kv "mode" "${LLMPROXY_MODE:-proxy}" "$w"
   _llmproxy_kv "run-mode" "${CLIPROXY_RUN_MODE:-direct}" "$w"
-  if _llmproxy_path_has_local_bin; then
-    _llmproxy_kv "path" "ok (~/.local/bin)" "$w"
-  else
-    _llmproxy_kv "path" "missing ~/.local/bin" "$w"
-    missing=1
-  fi
+  _llmproxy_kv "home" "${CLIPROXY_HOME:-<not set>}" "$w"
 
   for cmd in zsh curl python3; do
     if _llmproxy_has_cmd "$cmd"; then
@@ -216,15 +216,15 @@ PY
 
 llmproxy_setup() {
   local home env example base_url key run_mode
-  home="${CLIPROXY_HOME:-$HOME/cliproxyapi/llmproxy-config}"
+  home="${CLIPROXY_HOME}"
+  if [[ -z "$home" ]]; then
+    _cliproxy_log "CLIPROXY_HOME not set; run from repo or set CLIPROXY_HOME"
+    return 1
+  fi
   env="${CLIPROXY_ENV:-$home/.llmproxy.env}"
   example="$home/.llmproxy.env.example"
   llmproxy_doctor
   local ans
-  if ! _llmproxy_path_has_local_bin; then
-    export PATH="$HOME/.local/bin:$PATH"
-    _cliproxy_log "added ~/.local/bin to PATH for this session"
-  fi
   read -r "ans?Auto-fix missing deps? (y/N): "
   if [[ "$ans" == "y" || "$ans" == "Y" ]]; then
     llmproxy_fix
@@ -274,14 +274,14 @@ def set_kv(lines, k, v):
     found = False
     for l in lines:
         if l.startswith(f'export {k}='):
-            out.append(f'export {k}={shlex.quote(v)}\\n')
+            out.append(f'export {k}={shlex.quote(v)}\n')
             found = True
         else:
             out.append(l)
     if not found:
-        if out and not out[-1].endswith("\\n"):
-            out[-1] += "\\n"
-        out.append(f'export {k}={shlex.quote(v)}\\n')
+        if out and not out[-1].endswith("\n"):
+            out[-1] += "\n"
+        out.append(f'export {k}={shlex.quote(v)}\n')
     return out
 
 data = set_kv(data, "CLIPROXY_URL_LOCAL", base_url)

@@ -2,3 +2,10 @@
 .llmproxy.env
 .llmproxy.env.local
 config.yaml
+
+# AI
+.claude/
+plans/
+logs/
+CLAUDE.md
+AGENTS.md
