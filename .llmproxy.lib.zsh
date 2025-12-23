@@ -7,6 +7,10 @@ _cliproxy_log() {
   printf "[llmproxy] %s\n" "$*"
 }
 
+_cliproxy_is_macos() {
+  [[ "$(uname -s | tr '[:upper:]' '[:lower:]')" == "darwin" ]]
+}
+
 _llmproxy_kv() {
   local key="$1"
   local val="$2"
@@ -179,18 +183,49 @@ _llmproxy_sync_preset_models() {
 }
 
 _cliproxy_server_bin() {
+  local candidate prefix found
   if [[ -n "${CLIPROXY_BIN:-}" && -x "${CLIPROXY_BIN}" ]]; then
     echo "$CLIPROXY_BIN"
     return 0
   fi
-  if command -v cli-proxy-api >/dev/null 2>&1; then
-    command -v cli-proxy-api
-    return 0
+  for candidate in cli-proxy-api CLIProxyAPI cliproxyapi; do
+    if command -v "$candidate" >/dev/null 2>&1; then
+      found="$(command -v "$candidate")"
+      [[ -n "$found" ]] && export CLIPROXY_BIN="$found"
+      echo "$found"
+      return 0
+    fi
+  done
+  if command -v where >/dev/null 2>&1; then
+    for candidate in cli-proxy-api CLIProxyAPI cliproxyapi; do
+      found="$(where "$candidate" 2>/dev/null | tr ' ' '\n' | sed -n 's#^\\(/.*\\)#\\1#p' | head -n 1)"
+      if [[ -n "$found" && -x "$found" ]]; then
+        export CLIPROXY_BIN="$found"
+        echo "$found"
+        return 0
+      fi
+    done
   fi
-  if [[ -n "${CLIPROXY_SERVER_DIR:-}" && -x "${CLIPROXY_SERVER_DIR}/cli-proxy-api" ]]; then
-    echo "${CLIPROXY_SERVER_DIR}/cli-proxy-api"
-    return 0
+  if [[ -n "${CLIPROXY_SERVER_DIR:-}" ]]; then
+    for candidate in cli-proxy-api CLIProxyAPI cliproxyapi; do
+      if [[ -x "${CLIPROXY_SERVER_DIR}/$candidate" ]]; then
+        found="${CLIPROXY_SERVER_DIR}/$candidate"
+        export CLIPROXY_BIN="$found"
+        echo "$found"
+        return 0
+      fi
+    done
   fi
+  for prefix in /opt/homebrew/bin /usr/local/bin; do
+    for candidate in cli-proxy-api CLIProxyAPI cliproxyapi; do
+      if [[ -x "${prefix}/$candidate" ]]; then
+        found="${prefix}/$candidate"
+        export CLIPROXY_BIN="$found"
+        echo "$found"
+        return 0
+      fi
+    done
+  done
   _cliproxy_log "cli-proxy-api not found; set CLIPROXY_BIN"
   return 1
 }

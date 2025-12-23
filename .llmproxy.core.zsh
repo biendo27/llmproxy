@@ -309,6 +309,10 @@ cliproxy_run_mode() {
     _cliproxy_log "run mode: ${CLIPROXY_RUN_MODE:-direct}"
     return 0
   fi
+  if [[ "$mode" == "systemd" ]] && _cliproxy_is_macos; then
+    _cliproxy_log "systemd not available on macOS; use direct mode"
+    return 1
+  fi
   case "$mode" in
     direct|systemd) export CLIPROXY_RUN_MODE="$mode" ;;
     *)
@@ -386,6 +390,10 @@ cliproxy_systemd_enable() {
 
 cliproxy_start() {
   local mode="${CLIPROXY_RUN_MODE:-direct}"
+  if [[ "$mode" == "systemd" ]] && _cliproxy_is_macos; then
+    _cliproxy_log "systemd not available on macOS; using direct mode"
+    mode="direct"
+  fi
   if [[ "$mode" == "systemd" ]]; then
     if ! command -v systemctl >/dev/null 2>&1; then
       _cliproxy_log "systemctl not found (systemd unavailable on this OS)"
@@ -422,6 +430,10 @@ cliproxy_start() {
 
 cliproxy_stop() {
   local mode="${CLIPROXY_RUN_MODE:-direct}"
+  if [[ "$mode" == "systemd" ]] && _cliproxy_is_macos; then
+    _cliproxy_log "systemd not available on macOS; using direct mode"
+    mode="direct"
+  fi
   if [[ "$mode" == "systemd" ]]; then
     if ! command -v systemctl >/dev/null 2>&1; then
       _cliproxy_log "systemctl not found (systemd unavailable on this OS)"
@@ -451,6 +463,10 @@ cliproxy_restart() {
 
 cliproxy_server_status() {
   local mode="${CLIPROXY_RUN_MODE:-direct}"
+  if [[ "$mode" == "systemd" ]] && _cliproxy_is_macos; then
+    _cliproxy_log "systemd not available on macOS; using direct mode"
+    mode="direct"
+  fi
   if [[ "$mode" == "systemd" ]]; then
     if ! command -v systemctl >/dev/null 2>&1; then
       _cliproxy_log "systemctl not found (systemd unavailable on this OS)"

@@ -233,10 +233,16 @@ _cliproxy_action_run_mode() {
   _cliproxy_ui_no_xtrace
   _cliproxy_ui_silence_xtrace_begin
   local mode=""
+  local -a modes
+  modes=(direct)
+  if ! _cliproxy_is_macos; then
+    modes+=(systemd)
+  fi
   if _cliproxy_has_fzf; then
-    mode="$(printf "%s\n" direct systemd | _cliproxy_fzf_menu "Run mode> " "$(_cliproxy_ui_header)" "40%")" || return
+    mode="$(printf "%s\n" "${modes[@]}" | _cliproxy_fzf_menu "Run mode> " "$(_cliproxy_ui_header)" "40%")" || return
   else
-    read -r "mode?Run mode (direct/systemd): "
+    local prompt="Run mode (${(j:/:)modes}): "
+    read -r "mode?$prompt"
   fi
   [[ -n "$mode" ]] && cliproxy_run_mode "$mode"
   _cliproxy_ui_silence_xtrace_end
