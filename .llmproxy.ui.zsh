@@ -234,10 +234,7 @@ _cliproxy_action_run_mode() {
   _cliproxy_ui_silence_xtrace_begin
   local mode=""
   local -a modes
-  modes=(direct)
-  if ! _cliproxy_is_macos; then
-    modes+=(systemd)
-  fi
+  modes=(direct background)
   if _cliproxy_has_fzf; then
     mode="$(printf "%s\n" "${modes[@]}" | _cliproxy_fzf_menu "Run mode> " "$(_cliproxy_ui_header)" "40%")" || return
   else
@@ -262,6 +259,31 @@ _cliproxy_action_systemd_install() {
     [[ "$ans" == "y" || "$ans" == "Y" ]] && cliproxy_systemd_enable
   fi
   _cliproxy_ui_silence_xtrace_end
+}
+
+_cliproxy_action_launchd_install() {
+  setopt local_options
+  _cliproxy_ui_no_xtrace
+  _cliproxy_ui_silence_xtrace_begin
+  cliproxy_launchd_install
+  if _cliproxy_has_fzf; then
+    local choice
+    choice="$(printf "%s\n" "Load + start now" "Skip" | _cliproxy_fzf_menu "Launchd> " "$(_cliproxy_ui_header)" "40%")" || return
+    [[ "$choice" == "Load + start now" ]] && cliproxy_launchd_enable
+  else
+    read -r "ans?Load + start launchd now? (y/N): "
+    [[ "$ans" == "y" || "$ans" == "Y" ]] && cliproxy_launchd_enable
+  fi
+  _cliproxy_ui_silence_xtrace_end
+}
+
+_cliproxy_action_background_install() {
+  # Dispatch to OS-specific installer
+  if _cliproxy_is_macos; then
+    _cliproxy_action_launchd_install
+  else
+    _cliproxy_action_systemd_install
+  fi
 }
 
 llmproxy_ui_config() {
@@ -350,8 +372,8 @@ cliproxy_menu_text() {
     echo "19) Stop server"
     echo "20) Restart server"
     echo "21) Server status"
-    echo "22) Set run mode (direct/systemd)"
-    echo "23) Install systemd service"
+    echo "22) Set run mode (direct/background)"
+    echo "23) Install background service (systemd/launchd)"
     echo "24) Upgrade CLIProxyAPI"
     echo "25) Backup CLIProxyAPI binary"
     echo "26) Status"
@@ -382,7 +404,7 @@ cliproxy_menu_text() {
       20) cliproxy_restart ;;
       21) cliproxy_server_status ;;
       22) _cliproxy_action_run_mode ;;
-      23) _cliproxy_action_systemd_install ;;
+      23) _cliproxy_action_background_install ;;
       24) cliproxy_upgrade ;;
       25) cliproxy_backup ;;
       26) cliproxy_status ;;
@@ -441,8 +463,8 @@ cliproxy_menu() {
     item_lines+=("$(_llmproxy_menu_item "Stop server" "Stop CLIProxyAPI" "$item_w")")
     item_lines+=("$(_llmproxy_menu_item "Restart server" "Restart CLIProxyAPI" "$item_w")")
     item_lines+=("$(_llmproxy_menu_item "Server status" "Show running state" "$item_w")")
-    item_lines+=("$(_llmproxy_menu_item "Set run mode" "Direct/systemd" "$item_w")")
-    item_lines+=("$(_llmproxy_menu_item "Install systemd service" "User unit" "$item_w")")
+    item_lines+=("$(_llmproxy_menu_item "Set run mode" "Direct/background" "$item_w")")
+    item_lines+=("$(_llmproxy_menu_item "Install background service" "systemd (Linux) / launchd (macOS)" "$item_w")")
     item_lines+=("$(_llmproxy_menu_item "Upgrade CLIProxyAPI" "Latest release" "$item_w")")
     item_lines+=("$(_llmproxy_menu_item "Backup binary" "Timestamped copy" "$item_w")")
     item_lines+=("$(_llmproxy_menu_item "Clear model override" "Reset direct model" "$item_w")")
@@ -508,7 +530,7 @@ cliproxy_menu() {
       "Restart server") cliproxy_restart ;;
       "Server status") cliproxy_server_status ;;
       "Set run mode") _cliproxy_action_run_mode ;;
-      "Install systemd service") _cliproxy_action_systemd_install ;;
+      "Install background service") _cliproxy_action_background_install ;;
       "Upgrade CLIProxyAPI") cliproxy_upgrade ;;
       "Backup binary") cliproxy_backup ;;
       "Status") cliproxy_status ;;

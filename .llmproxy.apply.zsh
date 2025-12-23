@@ -2,7 +2,7 @@
 
 _cliproxy_apply() {
   _llmproxy_snapshot_env
-  if [[ "${LLMPROXY_MODE:-proxy}" == "direct" ]]; then
+  if [[ "${LLMPROXY_MODE:-proxy}" == "official" || "${LLMPROXY_MODE:-proxy}" == "direct" ]]; then
     _llmproxy_restore_env
     return
   fi

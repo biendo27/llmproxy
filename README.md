@@ -106,7 +106,7 @@ llmproxy toggle   # switch between the two
 Persist default mode in `.llmproxy.env`:
 
 ```zsh
-export LLMPROXY_MODE="proxy"  # or "direct"
+export LLMPROXY_MODE="proxy"  # or "official"
 ```
 
 Disable auto-sync if you want to pin models manually:
@@ -154,20 +154,33 @@ If you do run the server:
 
 ---
 
-## Run mode (direct vs systemd)
+## Run mode (direct vs background)
 
-Default mode is **direct** (runs `./cli-proxy-api` with `--config`).
+Default mode is **direct** (runs `./cli-proxy-api` with `--config` in foreground).
 
 ```zsh
 llmproxy run-mode direct
-llmproxy run-mode systemd
-llmproxy run-mode systemd --persist
+llmproxy run-mode background
+llmproxy run-mode background --persist
 ```
 
-Systemd setup (Linux only):
+Background mode uses **systemd** on Linux and **launchd** on macOS.
+
+### Linux (systemd)
 ```zsh
 llmproxy systemd-install
 llmproxy systemd-enable
+```
+
+### macOS (launchd)
+```zsh
+llmproxy launchd-install
+llmproxy launchd-enable
+```
+
+### Cross-platform shortcut
+```zsh
+llmproxy background-install   # auto-detects OS
 ```
 
 Upgrade binary:
@@ -185,7 +198,7 @@ llmproxy backup
 ## macOS support
 
 - `llmproxy upgrade` supports **darwin** (arm64/amd64)
-- systemd is **not** available on macOS → use **direct** mode
+- Background mode uses **launchd** (plist in `~/Library/LaunchAgents/`)
 
 ---
 

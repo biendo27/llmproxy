@@ -161,8 +161,10 @@ llmproxy_doctor() {
   fi
 
   if [[ "$os" == "darwin" ]]; then
+    _llmproxy_kv "launchd" "available" "$w"
     _llmproxy_kv "systemd" "not available (macOS)" "$w"
   else
+    _llmproxy_kv "launchd" "not available (Linux)" "$w"
     if _llmproxy_has_cmd systemctl; then
       _llmproxy_kv "systemd" "available" "$w"
     else
@@ -244,9 +246,9 @@ llmproxy_setup() {
   base_url="${base_url:-${CLIPROXY_URL_LOCAL:-http://127.0.0.1:8317}}"
   read -r -s "key?API key (CLIPROXY_KEY_LOCAL) [leave empty to keep]: "
   echo ""
-  read -r "run_mode?Run mode (direct/systemd) [${CLIPROXY_RUN_MODE:-direct}]: "
+  read -r "run_mode?Run mode (direct/background) [${CLIPROXY_RUN_MODE:-direct}]: "
   run_mode="${run_mode:-${CLIPROXY_RUN_MODE:-direct}}"
-  read -r "proxy_mode?Proxy mode (proxy/direct) [${LLMPROXY_MODE:-proxy}]: "
+  read -r "proxy_mode?Proxy mode (proxy/official) [${LLMPROXY_MODE:-proxy}]: "
   proxy_mode="${proxy_mode:-${LLMPROXY_MODE:-proxy}}"
   read -r "preset?Preset (claude/codex/gemini/antigravity) [${CLIPROXY_PRESET:-claude}]: "
   preset="${preset:-${CLIPROXY_PRESET:-claude}}"
@@ -309,14 +311,12 @@ cliproxy_run_mode() {
     _cliproxy_log "run mode: ${CLIPROXY_RUN_MODE:-direct}"
     return 0
   fi
-  if [[ "$mode" == "systemd" ]] && _cliproxy_is_macos; then
-    _cliproxy_log "systemd not available on macOS; use direct mode"
-    return 1
-  fi
+  # Map legacy 'systemd' to 'background' for backward compatibility
+  [[ "$mode" == "systemd" ]] && mode="background"
   case "$mode" in
-    direct|systemd) export CLIPROXY_RUN_MODE="$mode" ;;
+    direct|background) export CLIPROXY_RUN_MODE="$mode" ;;
     *)
-      echo "Usage: cliproxy_run_mode <direct|systemd> [--persist]"
+      echo "Usage: cliproxy_run_mode <direct|background> [--persist]"
       return 1
       ;;
   esac
@@ -388,21 +388,174 @@ cliproxy_systemd_enable() {
   systemctl --user enable --now "${svc}.service"
 }
 
+# --- launchd functions (macOS) ---
+
+_cliproxy_launchd_label() {
+  echo "${CLIPROXY_LAUNCHD_LABEL:-com.cliproxyapi}"
+}
+
+_cliproxy_launchd_plist_path() {
+  echo "$HOME/Library/LaunchAgents/$(_cliproxy_launchd_label).plist"
+}
+
+cliproxy_launchd_install() {
+  if ! _cliproxy_is_macos; then
+    _cliproxy_log "launchd only available on macOS"
+    return 1
+  fi
+
+  local bin config plist label log_dir
+  bin="$(_cliproxy_server_bin)" || return 1
+  config="$(_cliproxy_server_config)"
+  label="$(_cliproxy_launchd_label)"
+  plist="$(_cliproxy_launchd_plist_path)"
+  log_dir="${CLIPROXY_LOG_DIR:-$HOME}"
+
+  mkdir -p "$HOME/Library/LaunchAgents"
+  mkdir -p "$log_dir"
+
+  # Build ProgramArguments
+  local prog_args="<string>${bin}</string>"
+  if [[ -n "$config" ]]; then
+    prog_args="${prog_args}
+        <string>--config</string>
+        <string>${config}</string>"
+  fi
+
+  cat > "$plist" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>${label}</string>
+    <key>ProgramArguments</key>
+    <array>
+        ${prog_args}
+    </array>
+    <key>WorkingDirectory</key>
+    <string>${CLIPROXY_SERVER_DIR:-$HOME}</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>${log_dir}/cliproxyapi.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>${log_dir}/cliproxyapi.err.log</string>
+</dict>
+</plist>
+EOF
+
+  _cliproxy_log "launchd plist installed: $plist"
+}
+
+cliproxy_launchd_enable() {
+  if ! _cliproxy_is_macos; then
+    _cliproxy_log "launchd only available on macOS"
+    return 1
+  fi
+
+  local plist label
+  plist="$(_cliproxy_launchd_plist_path)"
+  label="$(_cliproxy_launchd_label)"
+
+  if [[ ! -f "$plist" ]]; then
+    _cliproxy_log "plist not found; run launchd-install first"
+    return 1
+  fi
+
+  # Unload first if already loaded (ignore errors)
+  launchctl unload "$plist" 2>/dev/null || true
+  launchctl load -w "$plist"
+  _cliproxy_log "launchd loaded: $label"
+}
+
+cliproxy_launchd_start() {
+  if ! _cliproxy_is_macos; then
+    _cliproxy_log "launchd only available on macOS"
+    return 1
+  fi
+
+  local plist label
+  plist="$(_cliproxy_launchd_plist_path)"
+  label="$(_cliproxy_launchd_label)"
+
+  if [[ ! -f "$plist" ]]; then
+    _cliproxy_log "plist not found; run launchd-install first"
+    return 1
+  fi
+
+  # Check if already loaded
+  if launchctl list 2>/dev/null | grep -q "$label"; then
+    _cliproxy_log "launchd already running: $label"
+    return 0
+  fi
+
+  launchctl load -w "$plist"
+  _cliproxy_log "launchd started: $label"
+}
+
+cliproxy_launchd_stop() {
+  if ! _cliproxy_is_macos; then
+    _cliproxy_log "launchd only available on macOS"
+    return 1
+  fi
+
+  local plist label
+  plist="$(_cliproxy_launchd_plist_path)"
+  label="$(_cliproxy_launchd_label)"
+
+  if [[ ! -f "$plist" ]]; then
+    _cliproxy_log "plist not found"
+    return 1
+  fi
+
+  launchctl unload "$plist" 2>/dev/null || true
+  _cliproxy_log "launchd stopped: $label"
+}
+
+cliproxy_launchd_status() {
+  if ! _cliproxy_is_macos; then
+    _cliproxy_log "launchd only available on macOS"
+    return 1
+  fi
+
+  local label
+  label="$(_cliproxy_launchd_label)"
+
+  if launchctl list 2>/dev/null | grep -q "$label"; then
+    local info
+    info="$(launchctl list "$label" 2>/dev/null)" || true
+    _cliproxy_log "launchd running: $label"
+    if [[ -n "$info" ]]; then
+      echo "$info"
+    fi
+  else
+    _cliproxy_log "launchd not running: $label"
+  fi
+}
+
 cliproxy_start() {
   local mode="${CLIPROXY_RUN_MODE:-direct}"
-  if [[ "$mode" == "systemd" ]] && _cliproxy_is_macos; then
-    _cliproxy_log "systemd not available on macOS; using direct mode"
-    mode="direct"
-  fi
-  if [[ "$mode" == "systemd" ]]; then
-    if ! command -v systemctl >/dev/null 2>&1; then
-      _cliproxy_log "systemctl not found (systemd unavailable on this OS)"
-      return 1
+  # Map legacy 'systemd' to 'background'
+  [[ "$mode" == "systemd" ]] && mode="background"
+  if [[ "$mode" == "background" ]]; then
+    if _cliproxy_is_macos; then
+      # macOS: use launchd
+      cliproxy_launchd_start
+      return $?
+    else
+      # Linux: use systemd
+      if ! command -v systemctl >/dev/null 2>&1; then
+        _cliproxy_log "systemctl not found (systemd unavailable on this OS)"
+        return 1
+      fi
+      local svc="${CLIPROXY_SYSTEMD_SERVICE:-cliproxyapi}"
+      systemctl --user start "${svc}.service"
+      _cliproxy_log "systemd start: ${svc}.service"
+      return 0
     fi
-    local svc="${CLIPROXY_SYSTEMD_SERVICE:-cliproxyapi}"
-    systemctl --user start "${svc}.service"
-    _cliproxy_log "systemd start: ${svc}.service"
-    return 0
   fi
 
   local bin config log_dir run_log pid_file
@@ -430,19 +583,24 @@ cliproxy_start() {
 
 cliproxy_stop() {
   local mode="${CLIPROXY_RUN_MODE:-direct}"
-  if [[ "$mode" == "systemd" ]] && _cliproxy_is_macos; then
-    _cliproxy_log "systemd not available on macOS; using direct mode"
-    mode="direct"
-  fi
-  if [[ "$mode" == "systemd" ]]; then
-    if ! command -v systemctl >/dev/null 2>&1; then
-      _cliproxy_log "systemctl not found (systemd unavailable on this OS)"
-      return 1
+  # Map legacy 'systemd' to 'background'
+  [[ "$mode" == "systemd" ]] && mode="background"
+  if [[ "$mode" == "background" ]]; then
+    if _cliproxy_is_macos; then
+      # macOS: use launchd
+      cliproxy_launchd_stop
+      return $?
+    else
+      # Linux: use systemd
+      if ! command -v systemctl >/dev/null 2>&1; then
+        _cliproxy_log "systemctl not found (systemd unavailable on this OS)"
+        return 1
+      fi
+      local svc="${CLIPROXY_SYSTEMD_SERVICE:-cliproxyapi}"
+      systemctl --user stop "${svc}.service"
+      _cliproxy_log "systemd stop: ${svc}.service"
+      return 0
     fi
-    local svc="${CLIPROXY_SYSTEMD_SERVICE:-cliproxyapi}"
-    systemctl --user stop "${svc}.service"
-    _cliproxy_log "systemd stop: ${svc}.service"
-    return 0
   fi
 
   if _cliproxy_pid_alive; then
@@ -463,18 +621,23 @@ cliproxy_restart() {
 
 cliproxy_server_status() {
   local mode="${CLIPROXY_RUN_MODE:-direct}"
-  if [[ "$mode" == "systemd" ]] && _cliproxy_is_macos; then
-    _cliproxy_log "systemd not available on macOS; using direct mode"
-    mode="direct"
-  fi
-  if [[ "$mode" == "systemd" ]]; then
-    if ! command -v systemctl >/dev/null 2>&1; then
-      _cliproxy_log "systemctl not found (systemd unavailable on this OS)"
-      return 1
+  # Map legacy 'systemd' to 'background'
+  [[ "$mode" == "systemd" ]] && mode="background"
+  if [[ "$mode" == "background" ]]; then
+    if _cliproxy_is_macos; then
+      # macOS: use launchd
+      cliproxy_launchd_status
+      return $?
+    else
+      # Linux: use systemd
+      if ! command -v systemctl >/dev/null 2>&1; then
+        _cliproxy_log "systemctl not found (systemd unavailable on this OS)"
+        return 1
+      fi
+      local svc="${CLIPROXY_SYSTEMD_SERVICE:-cliproxyapi}"
+      systemctl --user status "${svc}.service"
+      return 0
     fi
-    local svc="${CLIPROXY_SYSTEMD_SERVICE:-cliproxyapi}"
-    systemctl --user status "${svc}.service"
-    return 0
   fi
   if _cliproxy_pid_alive; then
     _cliproxy_log "running (pid $(cat "$CLIPROXY_PID_FILE"))"
@@ -595,8 +758,15 @@ PY
   [[ -n "$target" ]] || { _cliproxy_log "set CLIPROXY_BIN"; return 1; }
 
   running=0
-  if [[ "${CLIPROXY_RUN_MODE:-direct}" == "systemd" ]]; then
-    systemctl --user is-active --quiet "${CLIPROXY_SYSTEMD_SERVICE:-cliproxyapi}.service" && running=1
+  local run_mode="${CLIPROXY_RUN_MODE:-direct}"
+  # Map legacy 'systemd' to 'background'
+  [[ "$run_mode" == "systemd" ]] && run_mode="background"
+  if [[ "$run_mode" == "background" ]]; then
+    if _cliproxy_is_macos; then
+      launchctl list 2>/dev/null | grep -q "${CLIPROXY_LAUNCHD_LABEL:-com.cliproxyapi}" && running=1
+    else
+      systemctl --user is-active --quiet "${CLIPROXY_SYSTEMD_SERVICE:-cliproxyapi}.service" && running=1
+    fi
   else
     _cliproxy_pid_alive && running=1
   fi
@@ -783,14 +953,14 @@ llmproxy_on() {
 }
 
 llmproxy_off() {
-  export LLMPROXY_MODE="direct"
+  export LLMPROXY_MODE="official"
   _llmproxy_restore_env
   _llmproxy_clear_proxy_env
   _cliproxy_log "proxy disabled (use official Claude)"
 }
 
 llmproxy_toggle() {
-  if [[ "${LLMPROXY_MODE:-proxy}" == "direct" ]]; then
+  if [[ "${LLMPROXY_MODE:-proxy}" == "official" || "${LLMPROXY_MODE:-proxy}" == "direct" ]]; then
     llmproxy_on
   else
     llmproxy_off
@@ -919,11 +1089,13 @@ Commands:
   clear                    Clear model override
 
 Server:
-  start|stop|restart       Control server (direct/systemd)
+  start|stop|restart       Control server (direct/background)
   server-status            Show server status
-  run-mode <direct|systemd> [--persist]
-  systemd-install          Install user systemd service
-  systemd-enable           Enable + start user systemd service
+  run-mode <direct|background> [--persist]
+  systemd-install          Install user systemd service (Linux)
+  systemd-enable           Enable + start user systemd service (Linux)
+  launchd-install          Install user launchd service (macOS)
+  launchd-enable           Load + start user launchd service (macOS)
   upgrade                  Download and replace latest binary
   backup                   Create a timestamped backup of the binary
 
@@ -969,6 +1141,15 @@ cliproxy() {
     run-mode) cliproxy_run_mode "$@" ;;
     systemd-install) cliproxy_systemd_install ;;
     systemd-enable) cliproxy_systemd_enable ;;
+    launchd-install) cliproxy_launchd_install ;;
+    launchd-enable) cliproxy_launchd_enable ;;
+    background-install)
+      if _cliproxy_is_macos; then
+        cliproxy_launchd_install
+      else
+        cliproxy_systemd_install
+      fi
+      ;;
     upgrade) cliproxy_upgrade ;;
     backup) cliproxy_backup ;;
     help|-h|--help) cliproxy_help ;;
