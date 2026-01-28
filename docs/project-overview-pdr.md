@@ -20,7 +20,7 @@ LLMProxy is a small shell-based wrapper around CLIProxyAPI that makes it easy to
 - Users who want a minimal shell-based workflow with optional TUI.
 
 ## Functional Requirements
-- Bootstrap from repo root with `./llmproxy setup` and source `.llmproxy.zsh`.
+- Bootstrap from repo root with `./llmproxy setup` and source `src/llmproxy-bootstrap-loader.zsh`.
 - Apply env variables for Claude Code (ANTHROPIC_* and related defaults).
 - Support presets (claude/codex/gemini/antigravity) and direct model IDs.
 - Provide interactive selection (fzf) and a text fallback when fzf is missing.
@@ -29,7 +29,7 @@ LLMProxy is a small shell-based wrapper around CLIProxyAPI that makes it easy to
 
 ## Non-Functional Requirements
 - Must run on macOS and Linux with zsh available.
-- Must keep sensitive keys out of git by default (`.llmproxy.env`, `config.yaml`).
+- Must keep sensitive keys out of git by default (`config/llmproxy.env`, `config.yaml`).
 - Use simple, readable shell code and Python for small utilities only.
 
 ## Constraints

@@ -2,6 +2,7 @@
 .llmproxy.env
 .llmproxy.env.local
 config.yaml
+config/llmproxy.env
 
 # AI
 .claude/

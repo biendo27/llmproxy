@@ -7,7 +7,7 @@
 ## Milestones
 | Milestone | Status | Notes |
 | --- | --- | --- |
-| Core CLI wrapper and bootstrap | Complete | `llmproxy` entrypoint and `.llmproxy.zsh` loader. |
+| Core CLI wrapper and bootstrap | Complete | `bin/llmproxy` entrypoint and `src/llmproxy-bootstrap-loader.zsh` loader. |
 | Model presets and env apply | Complete | Preset mapping and `ANTHROPIC_*` env apply/restore. |
 | Interactive menu (fzf/text) | Complete | UI module supports fzf or text fallback. |
 | Background run mode support | Complete | Launchd (macOS) and systemd (Linux). |

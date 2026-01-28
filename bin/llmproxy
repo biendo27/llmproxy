@@ -33,12 +33,22 @@ PY
 }
 
 SCRIPT_PATH="$(resolve_path "${BASH_SOURCE[0]:-$0}")"
-ROOT_DIR="$(cd -- "$(dirname -- "$SCRIPT_PATH")" && pwd)"
-BIN_ENTRYPOINT="$ROOT_DIR/bin/llmproxy"
+HERE="$(cd -- "$(dirname -- "$SCRIPT_PATH")" && pwd)"
+ROOT_DIR="$(cd -- "$HERE/.." && pwd)"
 
-if [[ ! -x "$BIN_ENTRYPOINT" ]]; then
-  echo "llmproxy entrypoint not found: $BIN_ENTRYPOINT" >&2
+if [[ "${1:-}" == "init" ]]; then
+  echo "source \"$ROOT_DIR/src/llmproxy-bootstrap-loader.zsh\""
+  exit 0
+fi
+
+if ! command -v zsh >/dev/null 2>&1; then
+  echo "zsh not found. Please install zsh and try again." >&2
   exit 1
 fi
 
-exec "$BIN_ENTRYPOINT" "$@"
+quoted=""
+if [[ $# -gt 0 ]]; then
+  printf -v quoted '%q ' "$@"
+fi
+# Force-disable xtrace inside the non-interactive zsh run
+exec zsh -lc "export LLMPROXY_FORCE_NO_XTRACE=1; set +x; unsetopt xtrace; source \"$ROOT_DIR/src/llmproxy-bootstrap-loader.zsh\"; set +x; unsetopt xtrace; llmproxy ${quoted}"

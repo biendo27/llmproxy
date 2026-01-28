@@ -134,12 +134,12 @@ without touching your shell config first.
 
 ## Files in this folder
 
-- `.llmproxy.env` - profiles, API keys, model defaults
-- `.llmproxy.env.example` - safe template (no real keys)
-- `.llmproxy.zsh` - bootstrap loader
-- `.llmproxy.core.zsh` - core logic
-- `.llmproxy.ui.zsh` - UI (fzf/text menu)
-- `llmproxy` - wrapper script (runs everywhere)
+- `config/llmproxy.env` - profiles, API keys, model defaults
+- `config/llmproxy.env.example` - safe template (no real keys)
+- `src/llmproxy-bootstrap-loader.zsh` - bootstrap loader
+- `src/` - core modules (commands, UI, server control)
+- `bin/llmproxy` - primary entrypoint
+- `llmproxy` - root wrapper (calls bin/llmproxy)
 
 ---
 
@@ -159,8 +159,8 @@ You only need `config.yaml` if you **run the CLIProxyAPI server** yourself.
 If you just use the menu and connect to an existing server, you can ignore it.
 
 If you do run the server:
-- copy `config.example.yaml` → `config.yaml`
-- make sure `CLIPROXY_URL` and `CLIPROXY_KEY` in `.llmproxy.env` match it
+- copy `config/config.example.yaml` → `config.yaml`
+- make sure `CLIPROXY_URL` and `CLIPROXY_KEY` in `config/llmproxy.env` match it
 
 ---
 

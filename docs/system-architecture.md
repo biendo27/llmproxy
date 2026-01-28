@@ -4,18 +4,18 @@
 LLMProxy is a shell-based wrapper that configures environment variables for Claude Code to route requests through a CLIProxyAPI server. It provides a CLI menu and one-line commands to control proxy mode, presets, and model selection.
 
 ## Components
-- **Entry Script (`llmproxy`)**: Bash wrapper that resolves its path and runs zsh with the LLMProxy environment loaded.
-- **Bootstrap (`.llmproxy.zsh`)**: Sets the home path, loads `.llmproxy.env`, and sources core/UI modules.
-- **Core Module (`.llmproxy.core.zsh`)**: Command routing, setup/install flows, and dependency checks.
-- **UI Module (`.llmproxy.ui.zsh`)**: fzf-based menus with text fallback and status views.
-- **Library Module (`.llmproxy.lib.zsh`)**: Logging, env snapshot/restore, model helpers.
-- **Apply Module (`.llmproxy.apply.zsh`)**: Applies or restores Anthropic env variables based on mode/preset.
-- **Configuration (`.llmproxy.env`)**: User-edited environment values and model defaults.
+- **Entry Script (`bin/llmproxy`)**: Bash wrapper that resolves its path and runs zsh with the LLMProxy environment loaded.
+- **Root Wrapper (`llmproxy`)**: Forwards to `bin/llmproxy` for compatibility.
+- **Bootstrap (`src/llmproxy-bootstrap-loader.zsh`)**: Sets the home path, loads `config/llmproxy.env`, and sources split modules.
+- **Core Modules (`src/*.zsh`)**: Command routing, setup/install flows, diagnostics, model actions.
+- **UI Modules (`src/llmproxy-ui-*.zsh`)**: fzf/text menu rendering and UI state helpers.
+- **Platform Modules (`src/platform/*`)**: launchd (macOS) and systemd (Linux) integrations.
+- **Configuration (`config/llmproxy.env`)**: User-edited environment values and model defaults.
 - **CLIProxyAPI Server (external)**: Provides `/v1/models` and proxy behavior; configured via `config.yaml` if self-hosted.
 
 ## Data Flow
 1. **Invocation**: User runs `llmproxy` or a subcommand.
-2. **Bootstrap**: `llmproxy` loads `.llmproxy.zsh`, which sources env and modules.
+2. **Bootstrap**: `bin/llmproxy` loads `src/llmproxy-bootstrap-loader.zsh`, which sources env and modules.
 3. **Command Routing**: Core module parses the command and invokes actions (use preset, toggle mode, etc.).
 4. **Environment Apply**: Apply module sets or restores Anthropic env vars based on mode and selected preset/model.
 5. **Model Sync (Optional)**: Model selection may query `/v1/models` when proxy values are configured.
@@ -29,8 +29,8 @@ LLMProxy is a shell-based wrapper that configures environment variables for Clau
 - **Linux**: Background mode managed via systemd services.
 
 ## Security Considerations
-- `.llmproxy.env` and `config.yaml` contain secrets and are gitignored.
-- Configuration values are sourced from `.llmproxy.env` which is created from `.llmproxy.env.example`.
+- `config/llmproxy.env` and `config.yaml` contain secrets and are gitignored.
+- Configuration values are sourced from `config/llmproxy.env` which is created from `config/llmproxy.env.example`.
 - Environment variables are applied only when explicitly in proxy mode.
 
 ## Observability
