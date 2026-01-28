@@ -143,6 +143,16 @@ without touching your shell config first.
 
 ---
 
+## Documentation
+
+- `docs/project-overview-pdr.md` - Product overview and requirements
+- `docs/codebase-summary.md` - High-level repository summary
+- `docs/code-standards.md` - Conventions used in this repo
+- `docs/system-architecture.md` - Component and data flow overview
+- `docs/project-roadmap.md` - Current milestones and roadmap
+
+---
+
 ## About `config.yaml` (optional)
 
 You only need `config.yaml` if you **run the CLIProxyAPI server** yourself.
