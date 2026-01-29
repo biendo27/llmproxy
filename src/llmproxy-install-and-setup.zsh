@@ -107,6 +107,9 @@ llmproxy_fix() {
 
 llmproxy_setup() {
   local home env example base_url key run_mode
+  local config_written=0 config_env_set=0
+  local config_path api_key web_ui_enabled
+  local cliproxy_bin
   home="${CLIPROXY_HOME}"
   if [[ -z "$home" ]]; then
     _cliproxy_log "CLIPROXY_HOME not set; run from repo or set CLIPROXY_HOME"
@@ -120,6 +123,15 @@ llmproxy_setup() {
   if [[ "$ans" == "y" || "$ans" == "Y" ]]; then
     llmproxy_fix
   fi
+
+  if _llmproxy_prompt_yes_no "Install/upgrade CLIProxyAPI binary?" "y"; then
+    cliproxy_upgrade || return 1
+  else
+    cliproxy_bin="$(_cliproxy_server_bin 2>/dev/null)"
+    if [[ -z "$cliproxy_bin" ]]; then
+      _cliproxy_log "CLIProxyAPI binary not found; run 'llmproxy upgrade'"
+    fi
+  fi
   if [[ ! -f "$env" ]]; then
     if [[ -f "$example" ]]; then
       cp "$example" "$env"
@@ -130,11 +142,47 @@ llmproxy_setup() {
     fi
   fi
 
+  config_path="$home/config/cliproxyapi-local-config.yaml"
+  if [[ -f "$config_path" ]]; then
+    if _llmproxy_prompt_yes_no "Use existing CLIProxyAPI config at ${config_path}?" "y"; then
+      config_env_set=1
+    fi
+  elif _llmproxy_has_cmd python3 && _llmproxy_prompt_yes_no "Generate CLIProxyAPI config at ${config_path}?" "y"; then
+    if _llmproxy_prompt_yes_no "Enable CLIProxyAPI Web UI (management panel)?" "y"; then
+      web_ui_enabled="true"
+    else
+      web_ui_enabled="false"
+    fi
+    read -r -s "api_key?API key for CLIProxyAPI (leave empty to keep placeholder): "
+    echo ""
+    _llmproxy_write_config_yaml "$config_path" "" "8317" "~/.cli-proxy-api" "$api_key" "$web_ui_enabled"
+    config_written=1
+    config_env_set=1
+  fi
+
+  if [[ ! -f "$config_path" ]]; then
+    if ! _llmproxy_has_cmd python3; then
+      _cliproxy_log "python3 is required to generate CLIProxyAPI config"
+    elif [[ "${CLIPROXY_CONFIG:-}" == "$config_path" ]]; then
+      _cliproxy_log "CLIProxyAPI config missing at ${config_path}"
+    fi
+  fi
+
   local proxy_mode preset rc_path
   read -r "base_url?Base URL [${CLIPROXY_URL_LOCAL:-http://127.0.0.1:8317}]: "
   base_url="${base_url:-${CLIPROXY_URL_LOCAL:-http://127.0.0.1:8317}}"
   read -r -s "key?API key (CLIPROXY_KEY_LOCAL) [leave empty to keep]: "
   echo ""
+  if (( config_written )); then
+    if [[ -n "$key" ]]; then
+      api_key="$key"
+      _llmproxy_write_config_yaml "$config_path" "" "8317" "~/.cli-proxy-api" "$api_key" "$web_ui_enabled"
+    elif [[ -n "$api_key" ]]; then
+      key="$api_key"
+    fi
+  elif (( config_env_set )) && [[ -n "$key" ]]; then
+    _cliproxy_log "note: update api-keys in ${config_path} to match CLIPROXY_KEY_LOCAL"
+  fi
   read -r "run_mode?Run mode (direct/background) [${CLIPROXY_RUN_MODE:-direct}]: "
   run_mode="${run_mode:-${CLIPROXY_RUN_MODE:-direct}}"
   read -r "proxy_mode?Proxy mode (proxy/official) [${LLMPROXY_MODE:-proxy}]: "
@@ -142,9 +190,9 @@ llmproxy_setup() {
   read -r "preset?Preset (claude/codex/gemini/antigravity) [${CLIPROXY_PRESET:-claude}]: "
   preset="${preset:-${CLIPROXY_PRESET:-claude}}"
 
-  python3 - "$env" "$base_url" "$key" "$run_mode" "$proxy_mode" "$preset" <<'PY'
+  python3 - "$env" "$base_url" "$key" "$run_mode" "$proxy_mode" "$preset" "$config_path" "$config_written" "$config_env_set" <<'PY'
 import sys, shlex
-path, base_url, key, run_mode, proxy_mode, preset = sys.argv[1:7]
+path, base_url, key, run_mode, proxy_mode, preset, config_path, config_written, config_env_set = sys.argv[1:10]
 
 def clean(v: str) -> str:
     return v.replace("\n", "").replace("\r", "")
@@ -179,6 +227,8 @@ def set_kv(lines, k, v):
 data = set_kv(data, "CLIPROXY_URL_LOCAL", base_url)
 if key:
     data = set_kv(data, "CLIPROXY_KEY_LOCAL", key)
+if config_written == "1" or config_env_set == "1":
+    data = set_kv(data, "CLIPROXY_CONFIG", config_path)
 data = set_kv(data, "CLIPROXY_RUN_MODE", run_mode)
 data = set_kv(data, "LLMPROXY_MODE", proxy_mode)
 data = set_kv(data, "CLIPROXY_PRESET", preset)

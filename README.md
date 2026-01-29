@@ -22,8 +22,9 @@ cd llmproxy
 ```
 
 It will:
-- create `.llmproxy.env` from the template
+- create `config/llmproxy.env` from the template
 - offer to auto‑install missing tools
+- optionally install/upgrade CLIProxyAPI and generate a local config
 - add auto‑source to your shell rc (`~/.zshrc` on zsh)
 
 3) **Reload your shell**
@@ -43,8 +44,8 @@ llmproxy
 ## First run notes (important)
 
 - `llmproxy` works right after clone, but **/v1/models requires CLIProxyAPI running**.
-- If you’re running the server locally, ensure `CLIPROXY_URL`/`CLIPROXY_KEY` in `.llmproxy.env`
-  match the server `api-keys` in `config.yaml`.
+- If you’re running the server locally, ensure `CLIPROXY_URL`/`CLIPROXY_KEY` in `config/llmproxy.env`
+  match the server `api-keys` in your CLIProxyAPI config.
 - If you only want official Claude (no proxy), run:
   ```zsh
   llmproxy off
@@ -103,7 +104,7 @@ llmproxy on       # enable proxy again
 llmproxy toggle   # switch between the two
 ```
 
-Persist default mode in `.llmproxy.env`:
+Persist default mode in `config/llmproxy.env`:
 
 ```zsh
 export LLMPROXY_MODE="proxy"  # or "official"
@@ -136,6 +137,8 @@ without touching your shell config first.
 
 - `config/llmproxy.env` - profiles, API keys, model defaults
 - `config/llmproxy.env.example` - safe template (no real keys)
+- `config/cliproxyapi-safe-defaults-config-template.yaml` - safe CLIProxyAPI config template
+- `config/cliproxyapi-local-config.yaml` - local CLIProxyAPI config (generated, gitignored)
 - `src/llmproxy-bootstrap-loader.zsh` - bootstrap loader
 - `src/` - core modules (commands, UI, server control)
 - `bin/llmproxy` - primary entrypoint
@@ -153,13 +156,14 @@ without touching your shell config first.
 
 ---
 
-## About `config.yaml` (optional)
+## CLIProxyAPI config (optional)
 
-You only need `config.yaml` if you **run the CLIProxyAPI server** yourself.
+You only need a config if you **run the CLIProxyAPI server** yourself.
 If you just use the menu and connect to an existing server, you can ignore it.
 
 If you do run the server:
-- copy `config/config.example.yaml` → `config.yaml`
+- start from `config/cliproxyapi-safe-defaults-config-template.yaml` or generate a local config via `./llmproxy setup`
+- set `CLIPROXY_CONFIG` in `config/llmproxy.env` to point at your config
 - make sure `CLIPROXY_URL` and `CLIPROXY_KEY` in `config/llmproxy.env` match it
 
 ---
@@ -214,7 +218,7 @@ llmproxy backup
 
 ## Security (important)
 
-- `.llmproxy.env` contains API keys. **Do not publish** it in a public repo.
+- `config/llmproxy.env` contains API keys. **Do not publish** it in a public repo.
 - This folder includes `.gitignore` to avoid committing secrets.
 - If keys leak, rotate/revoke immediately.
 
@@ -223,7 +227,7 @@ llmproxy backup
 ## Troubleshooting
 
 - **`llmproxy` not found**: run `./llmproxy setup` again, or manually add
-  `source "/path/to/llmproxy/.llmproxy.zsh"` to your shell rc.
+  `source "/path/to/llmproxy/src/llmproxy-bootstrap-loader.zsh"` to your shell rc.
 - **Server not reachable**: run `llmproxy doctor` to check URL/key.
 - **Claude still shows API billing**: run `llmproxy off`, then restart Claude
   Code and login again.
@@ -232,12 +236,12 @@ llmproxy backup
 
 ## Model defaults
 
-Defined in `.llmproxy.env`:
+Defined in `config/llmproxy.env`:
 - `CLIPROXY_CLAUDE_*`, `CLIPROXY_CODEX_*`, `CLIPROXY_GEMINI_*`
 - Codex thinking levels: `CLIPROXY_CODEX_THINKING_*`
 - Preset: `CLIPROXY_PRESET`
 
-After editing `.llmproxy.env`:
+After editing `config/llmproxy.env`:
 ```zsh
-source /path/to/llmproxy/.llmproxy.zsh
+source /path/to/llmproxy/src/llmproxy-bootstrap-loader.zsh
 ```

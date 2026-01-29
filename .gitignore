@@ -1,7 +1,9 @@
 # Secrets
 .llmproxy.env
+llmproxy.env
 .llmproxy.env.local
 config.yaml
+config/cliproxyapi-local-config.yaml
 config/llmproxy.env
 
 # AI
@@ -15,3 +17,5 @@ AGENTS.md
 .vscode/
 
 repomix-output.xml
+.ignore
+config/static

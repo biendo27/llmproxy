@@ -51,6 +51,7 @@ _llmproxy_modules=(
   "$CLIPROXY_HOME/src/llmproxy-shared-model-listing.zsh"
   "$CLIPROXY_HOME/src/llmproxy-shared-path-helpers.zsh"
   "$CLIPROXY_HOME/src/llmproxy-shared-server-locator.zsh"
+  "$CLIPROXY_HOME/src/llmproxy-setup-prompts-and-cliproxyapi-config-generator.zsh"
   "$CLIPROXY_HOME/src/llmproxy-env-apply-restore.zsh"
   "$CLIPROXY_HOME/src/platform/llmproxy-systemd.zsh"
   "$CLIPROXY_HOME/src/platform/llmproxy-launchd.zsh"
