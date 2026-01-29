@@ -125,7 +125,7 @@ llmproxy_setup() {
   fi
 
   if _llmproxy_prompt_yes_no "Install/upgrade CLIProxyAPI binary?" "y"; then
-    cliproxy_upgrade || return 1
+    cliproxy_install || return 1
   else
     cliproxy_bin="$(_cliproxy_server_bin 2>/dev/null)"
     if [[ -z "$cliproxy_bin" ]]; then

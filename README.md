@@ -121,7 +121,7 @@ export LLMPROXY_AUTO_SYNC="0"
 ## One‑time commands
 
 ```zsh
-llmproxy setup     # wizard: env + deps + auto‑source
+llmproxy setup     # wizard: env + deps + auto‑source (+ optional CLIProxyAPI install)
 llmproxy install   # add auto‑source to shell rc
 llmproxy fix       # auto‑install missing deps
 llmproxy doctor    # check deps, server reachability, OS, mode
@@ -130,6 +130,8 @@ llmproxy sync-models claude   # sync preset models from /v1/models
 
 Tip: after git clone, you can run `./llmproxy setup` directly from this folder
 without touching your shell config first.
+Note: setup only installs the CLIProxyAPI binary (Homebrew on macOS, installer script on Linux);
+it does not start any background service.
 
 ---
 

@@ -1,5 +1,44 @@
 # Upgrade/backup CLIProxyAPI binary
 
+_llmproxy_brew_install_cliproxyapi() {
+  if ! _llmproxy_has_cmd brew; then
+    return 1
+  fi
+  if brew list --formula cliproxyapi >/dev/null 2>&1; then
+    brew upgrade cliproxyapi || brew reinstall cliproxyapi
+    return $?
+  fi
+  brew install cliproxyapi
+}
+
+_llmproxy_linux_install_cliproxyapi() {
+  local url
+  if ! _llmproxy_has_cmd curl; then
+    _cliproxy_log "curl not found; cannot run installer script"
+    return 1
+  fi
+  url="${CLIPROXY_INSTALLER_URL:-https://raw.githubusercontent.com/brokechubb/cliproxyapi-installer/refs/heads/master/cliproxyapi-installer}"
+  _cliproxy_log "running CLIProxyAPI installer script"
+  curl -fsSL "$url" | bash
+}
+
+cliproxy_install() {
+  local os
+  os="$(uname -s | tr '[:upper:]' '[:lower:]')"
+  if [[ "$os" == "darwin" ]]; then
+    if _llmproxy_brew_install_cliproxyapi; then
+      return 0
+    fi
+    _cliproxy_log "brew not available; falling back to GitHub release"
+  elif [[ "$os" == "linux" ]]; then
+    if _llmproxy_linux_install_cliproxyapi; then
+      return 0
+    fi
+    _cliproxy_log "installer script failed; falling back to GitHub release"
+  fi
+  cliproxy_upgrade
+}
+
 cliproxy_upgrade() {
   local os arch json url tag tmp archive newbin target running
   os="$(uname -s | tr '[:upper:]' '[:lower:]')"
@@ -110,6 +149,11 @@ PY
 
   target="${CLIPROXY_BIN:-$CLIPROXY_SERVER_DIR/cli-proxy-api}"
   [[ -n "$target" ]] || { _cliproxy_log "set CLIPROXY_BIN"; return 1; }
+
+  if ! mkdir -p "$(dirname "$target")"; then
+    _cliproxy_log "failed to create target dir: $(dirname "$target")"
+    return 1
+  fi
 
   running=0
   local run_mode="${CLIPROXY_RUN_MODE:-direct}"
